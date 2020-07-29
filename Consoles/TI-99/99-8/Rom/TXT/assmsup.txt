@@ -1,0 +1,911 @@
+       IDT 'ASSMSUP'                                                    AH
+*                                                                       AH
+       DEF  INIT,LOAD,POKEV                                             AH
+       DEF  LINK,LOADEN,ERRENT                                          GFH
+       DEF  ASMCON,KSENTR,XMLLEN                                        GFH
+       DEF  GETBAS,GETALC,BADVAL                                        GFH
+       DEF  HEX8
+*                                                                       AH
+       REF  VMBW,VSBW,VMBR,VSBR,SYM,SMB                                 AH
+       REF  LOADER,HB20                                                 AH
+       REF  DSRLNK,ERR,CPUSH,C16                                        AH
+       REF  PARSE,PGMCHR,CFI,EOSTMT,ERRSYN                              AH
+       REF  GETSTR,CONT,SETREG,SAVREG,SMBB10                            AH
+       REF  SYNTAX,H20,BYTE80,BYTE81,STKRTN                             AH
+       REF  UDFBIT,STBIT,NUMBR1,MOVSTK                                  AH
+       REF  RDTABL,MAPSTR                                               ATA 8/05
+       REF  SHRBIT,BYTE6B,CPOP                                          GFH
+       REF  SMB000,GETSTK,PUTSTK                                        GFH
+*                                                                       AH
+       LIST                                                             AH
+       COPY "WDS1.TI98.EQUATE9"                                         AH
+       LIST                                                             AH
+STRBIT BYTE >04                                                         GFH
+RMAP2  EQU  STRBIT                                                      ATA 7/19
+LMAP2  BYTE 5                                                           ATA 7/19
+RMAP3  BYTE 6                                                           ATA 7/19
+LMAP3  BYTE 7                                                           GFH
+       EVEN                                                             GFH
+*                                                                       AH
+SERR                                                                    AH
+       B    @ERRSYN                                                     AH
+BADV1                                                                   AH
+       B    @BADVAL                                                     AH
+************************************************************            AH
+*  INIT (# bytes):                                                      AH
+*  Reserve the requested # of bytes (or default of >2000                AH
+* if no # bytes is specified) for user's assembly language              AH
+* routines. The area reserved is between CMFNCE and RECBUF.             AH
+************************************************************            AH
+*NORMAL ENTRY POINT FOR INIT CODE:                                      AH
+INIT                                                                    AH
+       LI   R6,INITB          SPECIAL BECAUSE CAME FROM GPL             AH
+       JMP  BSMB10                                                      GFH
+*      B    @SMBB10                                                     GFH
+* ENTRY POINT FOR INIT CODE ACCESSED DURING "CALL LOAD"                 AH
+INITC                                                                   AH
+       INCT R9                                                          AH
+       MOV  R11,*R9                                                     AH
+RMAP0  EQU  $+3                                                         ATA 7/19
+       LI   R1,>2000                                                    AH
+       JMP  DFALT                                                       AH
+*                                                                       AH
+INITB                                                                   AH
+       INCT R9           SET UP FOR RETURN                              AH
+       MOV  R11,*R9                                                     AH
+       LI   R1,>2000     IN CASE REQUEST DEFAULT AMOUNT                 AH
+       BL   @EOSTMT      CHECK IF END OR IF REQUESTED #                 AH
+       JEQ  DFALT        EOS; USE DEFAULT                               AH
+       BL   @SYNTAX      ELSE MUST BE AT LEFT PAREN                     AH
+       DATA LPAR$*256    SKIP THE '('                                   AH
+       BL   @PARSE       PARSE THE #                                    AH
+       BYTE RPAR$        UP TO RIGHT PAREN                              AH
+INTBIT BYTE >08                                                         GFH 8/05
+       EVEN                                                             AH
+       BL   @SYNTAX      CHECK FOR THE ')'                              AH
+       DATA RPAR$*256    AND SKIP IT                                    AH
+       BL   @EOSTMT      MAKE SURE AT EOS                               AH
+       JNE  SERR         ELSE *SYNTAX ERROR                             AH
+       BL   @CFI         CONVERT TO INTEGER VALUE                       AH
+       MOVB @FAC+10,R0   ANY ERROR IN CONVERT?                          AH
+       JNE  BADV1        *BAD VALUE                                     AH
+       MOV  @FAC,R1      # OF BYTES REQUESTED IN R1                     AH
+       CI   R1,>5F10     MAXIMUM VALUE ALLOWED                          GFH
+       JH   BADV1        IF NEG OR MORE THAN 6000,*BAD VALUE            AH
+       ANDI R1,>FFFE     MAKE SURE ITS AN EVEN #                        GFH
+DFALT                                                                   AH
+       MOV  R1,@LAST     FOR CALCULATING 'LAST'                         AH
+       BL   @MOVSTK      MOVE VSTACK,RECALL BUF OUT OF WAY              AH
+       MOV  @LAST,R1     GET LENGTH                                     AH
+       JEQ  POPRTN       IF 0, JUST RETURN                              AH
+       LI   R1,>A000     LOGICAL TOP OF ASSM LANG AREA                  AH
+       MOV  R1,@FIRST    INITIALIZE FIRST FREE ADDR TO TOP              AH
+       A    R1,@LAST     CALCULATE BEGIN OF REF/DEF TABLE               AH
+       MOV  @LAST,@PREDEF  STORE BEGIN OF STANDARD R/D TABLE            AH
+       MOV  @CMFNCE,R1   SET UP ADR OF REF/DEF ASSEM TABLE              AH
+       MOV  @CMFNCE+2,R2                                                AH
+       LI   R0,>F0        LENGTH OF REF/DEF TABLE                       GFH
+       MOV  R0,@TABLEN    LENGTH OF REF/DEF TABLE                       AH
+       S    R0,R2         CALCULATE ADDR OF REF/DEF TABLE               AH
+       JOC  NOCAR7                                                      AH
+       DEC  R1                                                          AH
+NOCAR7                                                                  AH
+       XOP  R1,3         MAP IN REF/DEF TABLE AREA                      AH
+       DATA STMAP                                                       AH
+       MOV  @LAST,R1     USER REQUESTED ASSM LANG SPACE?                AH
+       JEQ  POPRTN       NO- USER WANTED IT REMOVED                     AH
+       LI   R1,RDTABL    YES-MOVE IN THE REF/DEF TABLE                  AH
+       LI   R2,STRWIN                                                   AH
+       LI   R3,120       LENGTH OF THE TABLE (>F0/2)                    GFH
+TABLIN                                                                  AH
+       MOV  *R1+,*R2+    MOVE A WORD OF THE TABLE                       AH
+       DEC  R3                                                          AH
+       JNE  TABLIN                                                      AH
+*UPDATE THE SAVED BASIC MAP FILE                                        GFH
+       MOVB @RMAP3,@MAPPER                                              GFH
+*SET UP MAP FILE 2 FOR ASSEM LANG SPACE                                 GFH
+       MOVB @RMAP2,@MAPPER   READ CURRENT MAP TO 2ND MAP                GFH
+* SET UP MAP FILE FOR MAPPING ASSEM LANG MEMORY INTO                    GFH
+* CONTIGUOUS LOGICAL MEMORY STARTING AT >A000                           GFH
+       MOV  @USALC,R0                                                   GFH
+       MOV  @USALC+2,R1                                                 GFH
+       LI   R2,6                                                        GFH
+       LI   R3,MF2+>28   MAP REG 'A' IN MAP FILE 2                      GFH
+MORMAP                                                                  GFH
+       MOV  R0,*R3+                                                     GFH
+       MOV  R1,*R3+                                                     GFH
+       DEC  R2                                                          GFH
+       JEQ  DONMAP                                                      GFH
+       AI   R1,>1000                                                    GFH
+       JNC  MORMAP                                                      GFH
+       INC  R0                                                          GFH
+       JMP  MORMAP                                                      GFH
+DONMAP                                                                  GFH
+POPRTN                                                                  AH
+       B    @STKRTN      GETS RTN ADD OFF STACK,RTNS                    AH
+*                                                                       AH
+************************************************************            GFH
+* CALL POKEV(ADDR,INTEGER,...)                                          GFH
+************************************************************            GFH
+POKEV                                                                   GFH
+       CLR  @FACSAV+2    FLAG TO KNOW VDP                               GFH
+       LI   R6,LOADC     DIFFERENT ENTRY POINT INTO LOAD                GFH
+       JMP  BSMB10                                                      GFH
+************************************************************            AH
+* CALL LOAD(MEM LOCATION,INTEGER,...,INT,"FILE NAME",..)   *            AH
+************************************************************            AH
+LOAD                                                                    AH
+       LI   R6,LOADB          SPECIAL BECAUSE CAME FROM GPL             AH
+       MOVB @RMAP3,@MAPPER    READ BASIC'S CURRENT MAPFILE              GFH
+BSMB10                                                                  GFH
+       B    @SMBB10                                                     AH
+*                                                                       AH
+LOADB                                                                   AH
+       SETO @FACSAV+2    FLAG TO KNOW CPU                               GFH
+LOADC                                                                   GFH
+       INCT R9           SET UP FOR RETURN                              AH
+       MOV  R11,*R9                                                     AH
+       BL   @SYNTAX      MUST BE AT LEFT PAREN                          AH
+       DATA LPAR$*256    SKIP THE '('                                   AH
+GETMOR                                                                  GFH
+       BL   @PARSE       PARSE THE # OR THE STRING                      AH
+       BYTE RPAR$        UP TO COMMA OR ')'                             GFH
+BYTE0  BYTE >0           UNUSED BYTE FOR CONSTANT                       GFH
+       CB   @FAC+2,@BYTE80  IS IT # OR STRING?                          AH
+       JHE  FILE         STRING-MUST LOAD PROGRAM                       AH
+************************************************************            AH
+*  POKE VALUE(S) INTO CPU/VDP RAM                                       GFH
+       BL   @CFI         CONVERT INTO INTEGER                           AH
+       MOVB @FAC+10,R4   CHECK FOR ERRORS                               AH
+       JNE  BADVAL                                                      AH
+       MOV  @FAC,@FACSAV SAVE THE ADDR FOR POKE                         GFH
+LDP4                                                                    GFH
+       CI   R8,COMMA$*256 DONE?                                         GFH
+       JEQ  LOAD00       NO THEN TRY TO DO A LOAD                       GFH
+       BL   @SYNTAX      MUST BE AT ')'                                 GFH
+       DATA RPAR$*256                                                   GFH
+RTNPOP JMP  POPRTN                                                      GFH
+*      B    @STKRTN      ELSE CONTINUE                                  GFH
+LOAD00                                                                  GFH
+       BL   @PGMCHR      MOVE PAST THE COMMA                            GFH
+       BL   @PARSE       PARSE THE # OR THE STRING                      GFH
+       BYTE RPAR$        UP TO COMMA OR ')'                             GFH
+ARRBIT BYTE >02          UNUSED BYTE FOR CONSTANT                       GFH
+       CB   @FAC+2,@BYTE80  IS IT A STRING?                             GFH
+       JHE  FILE         YES-SO START OVER                              GFH
+       BL   @CFI         HAVE #. CONVERT TO INTEGER                     GFH
+       MOVB @FAC+10,R0   ERROR IN CONVERT?                              GFH
+       JNE  BADVAL       YES-OVERFLOW ERROR                             AH
+       MOV  @FACSAV,R0   VDP/CPU  ADDR IN R0                            GFH
+       MOV  @FACSAV+2,R2 0 IF POKE, FF IF POKEV                         GFH
+       JNE  POKEIT                                                      GFH
+       MOVB @FAC+1,R1    BYTE TO STORE IN R1MB                          GFH
+       BLWP @VSBW        WRITE IT TO VDP                                GFH
+LDP3                                                                    GFH
+       INC  @FACSAV      INCREMENT THE ADDRESS                          GFH
+       JMP  LDP4                                                        GFH
+POKEIT                                                                  GFH
+       BL   @GETALC      POKE TO USER'S SPACE                           GFH
+       MOVB @FAC+1,*R0   STORE THE VALUE                                GFH
+       BL   @GETBAS      RESTORE BASIC'S MAP                            GFH
+       JMP  LDP3                                                        GFH
+BADVAL                                                                  AH
+       LI   R0,ERRBV                                                    AH
+       B    @ERR                                                        AH
+SERR1                                                                   AH
+       B    @SERR                                                       AH
+************************************************************            AH
+FILE                                                                    AH
+       MOV  @FAC,R0      LENGTH OF STRING=0?                            GFH
+       JEQ  GETMO1       THEN GO TO NEXT TO LOAD                        GFH
+* INIT MUST HAVE BEEN CALLED.                                           AH
+       C    @USALC+2,@CMFNCE+2  IS SPACE ALLOC FOR PGM?                 AH
+       JNE  GOTRM        YES                                            AH
+       C    @USALC,@CMFNCE                                              AH
+       JNE  GOTRM        YES                                            AH
+       BL   @INITC       NO- ALLOCATE DEFAULT AMOUNT                    AH
+GOTRM                                                                   AH
+       BL   @MAPSTR      MAP IN THE STRING NAME                         GFH
+* NOW SET UP A PAB IN VDP TO OPEN THE FILE.                             AH
+* USE PAB FORMAT FROM 99/4A.                                            AH
+* THE PAB IS AT "VDPPAB" = >1C20 AND HAS BEEN CLEARED                   AH
+* TO 0'S IN GPL,PLUS FLAG,BUFFER ADDR,SCREEN OFFS HAVE                  AH
+* BEEN INITIALIZED.                                                     AH
+* NOW SET UP NAME LENGTH AND NAME                                       AH
+       LI   R0,VDPPAB    STORE POINTER TO PAB                           GFH
+       MOV  R0,@SAVOP    IN "SAVOP"                                     GFH
+       BL   @SETOP                                                      GFH
+       DATA >0004        OPEN OP CODE                                   GFH
+       AI   R0,6         ADDR IN PAB TO STORE RECORD #                  GFH
+       BL   @SETOP1                                                     GFH
+       DATA >0000        CLEAR THE RECORD NUMBER IN PAB                 GFH
+       AI   R0,3         ADDR IN PAB TO STORE NAME LEN                  GFH
+       MOVB @FAC+1,R1    STORE NAME LEN IN R1                           GFH
+       BLWP @VSBW        STORE THE NAME LENGTH IN PAB                   AH
+       INC  R0           ADDR IN PAB TO STORE NAME                      AH
+       MOVB R1,R2        #OF CHARS IN NAME                              AH
+       SRL  R2,8         MAKE IT WORD ALIGNED                           AH
+       LI   R1,STRWI2    ADDR OF STRING TO MOVE                         GFH
+       BLWP @VMBW        WRITE NAME TO OPEN                             AH
+       LI   R0,VDPPAB+9  POINT TO LENGTH BYTE OF PAB                    AH
+       MOV  R0,@SCNAME   SET UP FOR DSRLNK                              AH
+       BL   @SAVREG      SAVE R8,R9 DURING BLWP                         AH
+       BL   @GETALC                                                     GFH
+       BLWP @LOADER                                                     AH
+       BL   @GETBAS                                                     GFH
+       BL   @SETREG      RESTORE R8,R9                                  AH
+GETMO1                                                                  AH
+       CI   R8,COMMA$*256 AT A COMMA?                                   AH
+       JNE  MSTEND                                                      AH
+       BL   @PGMCHR      GO PAST COMMA                                  AH
+       JMP  GETMOR       AND START OVER                                 GFH
+*                                                                       AH
+MSTEND BL   @SYNTAX                                                     AH
+       DATA RPAR$*256                                                   AH
+       JMP  RTNPOP                                                      GFH
+*      B    @STKRTN                                                     GFH
+*-----------------------------------------------------------            AH
+* LINKING LOADER ENTRY                                                  AH
+*-----------------------------------------------------------            AH
+*                                                                       AH
+* OPEN THE FILE                                                         AH
+LOADEN                                                                  AH
+       CLR  @ENTADD      INIT TO 'NO IMMEDIATE EXECUTION'               AH
+       MOV  @SCNAME,@SAVPAB   STORE FOR OTHER DSRLNK(S)                 AH
+       MOV  @SCNAME,R1                                                  GFH
+       AI   R1,-9        POINT TO OPCODE BYTE                           GFH
+       MOV  R1,@SAVOP    KEEP FOR "SETOP" ROUTINE                       GFH
+       BLWP @DSRLNK      VDPIO                                          AH
+       DATA 8            DSR ACCESS CODE                                AH
+       JEQ  OPERR        LOADER I/O ERROR                               GFH
+* SET UP TO READ IN A RECORD                                            AH
+       BL   @SETOP                                                      GFH
+       DATA >0204        LOAD A READ OPCODE                             GFH
+* INITIALIZE LOAD BIAS &PGM CTR TO (LOGICAL) >A000                      AH
+       LI   R7,>A000                                                    AH
+       MOV  R7,R5                                                       AH
+       CLR  R12          ASSUME NOT COMPRESSED OBJECT                   AH
+       BL   @GETREC      READ 1ST RECORD & FETCH 1ST BYTE               AH
+       CI   R3,1         COMPRESSED OBJECT FORMAT?                      AH
+       JNE  DCD          NO, SO CONTINUE                                AH
+       INC  R12          YES, SO SHOW COMPRESSED FORMAT                 AH
+       CLR  R3           PROCESS AS '0' TAG                             AH
+       JMP  COMP         DON'T DECODE SINCE NOT ASCII                   AH
+**                                                                      AH
+*** Tag processors                                                      AH
+*                                                                       AH
+JUMP   EQU  $                                                           AH
+**                                                                      AH
+CHKF   CI   R3,'F'       End of record?                                 AH
+       JNE  DCD          No, so decode tag                              AH
+**                                                                      AH
+TAGF   CLR  R2           Yes, get a new record                          AH
+*                                                                       AH
+NXTTAG EQU  $                                                           AH
+*                                                                       AH
+** Ignore checksum                                                      AH
+TAG8   BL   @GETBYT      Fetch a byte                                   AH
+       CI   R3,':'       End of file?                                   AH
+       JNE  CHKF         Yes                                            AH
+*                                                                       AH
+*** End of load operation                                               AH
+       BL   @CLSIT       Close the file                                 GFH 8/04
+       JEQ  CLSERR       Error in close? YES                            GFH 8/04
+*                                                                       GFH
+       MOV  @ENTADD,R0   Immediate execution?                           AH
+       JEQ  LDRTN        No, just return to caller                      AH
+*      BL   @GETALC                                                     GFH
+       BL   @CHKREF      Yes, check for unresolved reference            AH
+       JMP  LDERR        ERROR BRANCH ONLY                              AH
+       MOV  R14,@22(R13) Move rtn address into caller's R11             AH
+       MOV  @ENTADD,R14  Write execution addr over saved PC             AH
+LDRTN  RTWP              Return TO CALLER                               AH
+**                                                                      AH
+OPERR                                                                   GFH
+       CLR  R1           PLACE "OPEN" OPCODE INTO R1                    GFH
+       JMP  LDER1                                                       GFH
+CLSERR                                                                  GFH
+       LI   R1,>0100     PLACE "CLOSE" OPCODE INTO R1                   GFH
+       JMP  LDER1                                                       GFH
+RDERR                                                                   GFH
+       BL   @CLSIT                                                      GFH 8/04
+       LI   R1,>0200     PLACE "READ" OPCODE INTO R1                    GFH
+LDER1                                                                   GFH
+       MOVB R1,@VAR0                                                    GFH
+       SLA  R0,4         error handler wants it in ms nib               ATA 7/29
+       MOVB R0,@VAR0+1   AND PUT IN FOR ERROR ROUTINE                   GFH
+       LI   R0,ERRIO                                                    GFH
+LDERR  MOV  R0,@GPLWS     Place error code in calling R0                GFH
+       BL   @GETBAS       RESTORE BASIC'S MAP FILE                      GFH
+       LWPI GPLWS                                                       GFH
+       BL   @SETREG      Restore R8,9                                   GFH
+       B    @ERR         Go to BASIC's error handler                    GFH
+*                                                                       ATA 8/05
+DATERR BL   @CLSIT       close file after data error                    ATA 8/05
+       MOV  R8,R0        put error code in propper place                GFH 8/08
+       JMP  LDERR                                                       ATA 8/05
+**                                                                      AH
+DCD    BL   @DECODE      Decode ASCII tag                               AH
+COMP   CLR  R4           Clean up the jump index                        AH
+       MOVB @TAGTBL(R3),R4    Fetch displacement from table             AH
+       SRL  R4,7         Right justify and MPY by 2                     AH
+       MOV  R8,@CHKSAV   Save checksum in case of '7' tag               AH
+       BL   @DCDF1       Decode field 1 following tag                   AH
+       B    @JUMP(R4)    Jump to appropriate tag handler                AH
+*                                                                       AH
+** PSEG length and module name                                          AH
+TAG0   INC  R0           Make sure length                               AH
+       ANDI R0,>FFFE        is an even value                            AH
+       MOV  @FIRST,R4    Get first free addr                            AH
+       A    R0,R4        Add in current module length                   AH
+       JOC  MEMOVF       Not enough memory-ERROR                        AH
+       C    R4,@LAST     Enough room ?                                  AH
+       JHE  MEMOVF       No-ERROR                                       AH
+       MOV  @FIRST,R5    Set new load bias                              AH
+       MOV  R4,@FIRST    Set new first free memory pointer              AH
+       MOV  R5,R7        Set new program counter                        AH
+*                                                                       AH
+**                                                                      AH
+TAGI   LI   R9,8         Prepare to skip 8 character symbol             AH
+SKIP   BL   @GETBYT      Read a byte from record                        AH
+       DEC  R9           Decrement count                                AH
+       JNE  SKIP         More to get?                                   AH
+       JMP  NXTTAG       Continue to next tag                           AH
+**                                                                      AH
+MEMOVF LI   R8,ERROM     Indicate memory overflow                       GFH 8/08
+BDATER JMP  DATERR       Return error to calling program                ATA 8/05
+*                                                                       AH
+** Relocatable entry point                                              AH
+TAG2   A    R5,R0        Add load bias to entry address                 AH
+*                                                                       AH
+** Absolute entry point                                                 AH
+TAG1   MOV  R0,@ENTADD   Save entry address                             AH
+       JMP  NXTTAG       Continue to next tag                           AH
+*                                                                       AH
+** Check the checksum                                                   AH
+TAG7   A    R0,@CHKSAV   Add checksum to accumulated value              AH
+       JEQ  NXTTAG       If correct, go to next tag                     AH
+       JMP  BADTAG      Return error to calling program                 ATA 8/05
+*                                                                       AH
+** Relocatable load address                                             AH
+TAGA   A    R5,R0        Add bias to relocatable address                AH
+*                                                                       AH
+** Absolute load address                                                AH
+TAG9   MOV  R0,R7        Move new load address into PC                  AH
+       JMP  NXTTAG       Continue to next tag                           AH
+*                                                                       AH
+** Relocatable data                                                     AH
+TAGC   A    R5,R0        Add bias to relocatable data                   AH
+*                                                                       AH
+** Absolute data                                                        AH
+TAGB   MOVB R0,*R7+      Move byte of data into program                 AH
+       MOVB @LR0LB,*R7+  Move byte of data into program                 AH
+       JMP  NXTTAG       Continue to next tag                           AH
+*                                                                       AH
+** External reference in relocatable code                               AH
+TAG3   A    R5,R0        Add load bias to address of ref                AH
+*                                                                       AH
+** External reference in absolute code                                  AH
+TAG4   BL   @PUSH        Push external REF on DEF/REF stack             AH
+       MOV  R0,R0        Was REFed symbol ever used?                    AH
+       JEQ  DLTREF       No, so delete the REF                          AH
+*      Search for corresponding DEF                                     AH
+NXTDEF AI   R6,-8        Point to next entry                            AH
+       C    R6,R4        Done yet?                                      AH
+       JH   NXTDE3       No                                             AH
+       NEG  *R4          No DEF, so neg 1st word of symbol              AH
+NXTTG2 JMP  NXTTAG       Continue to next tag                           AH
+NXTDE3 C    *R4,*R6      Compare first word of symbols                  AH
+       JNE  NXTDEF       If different, move on                          AH
+       C    @2(R4),@2(R6)  Check second word of symbols                 AH
+       JNE  NXTDEF       If different, move on                          AH
+       C    @4(R4),@4(R6)  Check third word of symbols                  AH
+       JNE  NXTDEF       If different, move on                          AH
+*      Resolve the REF                                                  AH
+       MOV  @6(R6),R3    Fetch DEFined value into R0                    AH
+RESREF MOV  *R0,R9       Save address of next ref                       AH
+       MOV  R3,*R0       Store referenced value in code                 AH
+       MOV  R9,R0        Fetch address of next ref                      AH
+       JNE  RESREF       Not done til next addr = 0000                  AH
+HEX8   EQU  $+2
+DLTREF AI   R4,8         Delete the REF                                 AH
+       MOV  R4,@LAST     Adjust the stack pointer                       AH
+       S    @HEX8,@TABLEN
+       JMP  NXTTG2                                                      AH
+*                                                                       AH
+** External definition in relocatable code                              AH
+TAG5   A    R5,R0        Add load bias to defined address               AH
+*                                                                       AH
+** External definition in absolute code                                 AH
+TAG6   BL   @PUSH        Push DEF on DEF/REF stack                      AH
+*      Search for corresponding REFs or duplicate DEFs                  AH
+NXTENT AI   R6,-8        Point to next entry                            AH
+NXTEN2 C    R6,R4        Done yet?                                      AH
+       JEQ  NXTTG2       Yes                                            AH
+       MOV  *R6,R10      Fetch first word of symbol                     AH
+       JGT  NXTEN3       Positive indicates DEF, so go on               AH
+       NEG  R10          Negate to restore value of REF                 AH
+NXTEN3 C    *R4,R10      Compare first word of symbols                  AH
+       JNE  NXTENT       If different, move on                          AH
+       C    @2(R4),@2(R6)  Check second word of symbols                 AH
+       JNE  NXTENT       If different, move on                          AH
+       C    @4(R4),@4(R6)  Check third word of symbols                  AH
+       JNE  NXTENT       If different, move on                          AH
+       MOV  *R6,R10      REF or DEF?                                    AH
+       JGT  DDFERR       Duplicate DEFinition, error off                AH
+*      Resolve the REF                                                  AH
+       MOV  @6(R6),R3    Fetch pointer to first REF                     AH
+RESRF2 MOV  *R3,R9       Save address of next ref                       AH
+       MOV  R0,*R3       Store referenced value in code                 AH
+       MOV  R9,R3        Fetch address of next ref                      AH
+       JNE  RESRF2       Not done til next addr = 0000                  AH
+*      Delete the REF from the DEF/REF stack                            AH
+       MOV  R6,R9                                                       AH
+       S    R4,R9        Calculate number of bytes to move              AH
+       MOV  R6,R10                                                      AH
+       AI   R10,8        Calculate destination + 1                      AH
+       MOV  R6,R3        Fetch source + 1                               AH
+DELREF DECT R3           Point to next source word                      AH
+       DECT R10          Point to next destination word                 AH
+       MOV  *R3,*R10     Move the word                                  AH
+       DECT R9           More to move                                   AH
+       JNE  DELREF       Yes                                            AH
+       AI   R4,8         Adjust current DEF pointer                     AH
+       S    @HEX8,@TABLEN Correct table length                          GFH
+       MOV  R4,@LAST     Adjust stack pointer                           AH
+       JMP  NXTEN2       Continue                                       AH
+**                                                                      AH
+DDFERR MOV  R4,@2(R13)   Return pointer to symbol                       AH
+       LI   R8,ERRIUN    IMPROPERLY USED NAME                           GFH 8/08
+       JMP  BDATER        Return error to calling program               ATA 8/05
+MOVFER B    @MEMOVF                                                     GFH 8/08
+*                                                                       AH
+** Illegal tags                                                         AH
+TAGD   EQU  $                                                           AH
+TAGE   EQU  $                                                           AH
+TAGG   EQU  $                                                           AH
+TAGH   EQU  $                                                           AH
+BADTAG LI   R8,ERRUC     Indicate UNRECOGNIZD CHARACTER                 GFH 8/08
+       JMP  BDATER      Return error to calling program                 ATA 8/05
+                                                                        GFH
+*                                                                       GFH
+*** Push DEF or REF on DEF/REF stack                                    GFH
+*                                                                       GFH
+PUSH   MOV  R11,R10      Save return address                            GFH
+       LI   R9,6         Prepare to push symbol on stack                GFH
+       MOV  @LAST,R6     Fetch pointer to last DEF/REF                  GFH
+       AI   R6,-8        Assume there is room for another               GFH
+       MOV  R6,R4        Save pointer for search to follow              GFH
+       C    R6,@FIRST    Is there room for this DEF/REF?                GFH
+       JLE  MOVFER       No, error off                                  GFH
+       MOV  R6,@LAST     Yes, store new DEF/REF pointer                 GFH
+DEFENT BL   @GETBYT      Fetch a character of symbol                    GFH
+       MOVB @LR3LB,*R6+  Move character into DEF/REF table              GFH
+       DEC  R9           More to move?                                  GFH
+       JNE  DEFENT       Yes                                            GFH
+       MOV  R0,*R6       Move value into table after symbol             GFH
+       A    @HEX8,@TABLEN  POINT TO BEGIN OF DEF/REF STACK              GFH
+       MOV  @TABLEN,R6                                                  GFH
+       A    @LAST,R6                                                    GFH
+       B    *R10         Return to caller                               GFH
+*                                                                       GFH
+*** Decode field 1 following ASCII tag                                  GFH
+*                                                                       GFH
+DCDF1  MOV  R11,R10      Save return address                            GFH
+       CLR  R0           Clear an accumulator                           GFH
+       MOV  R12,R12      Is object compressed?                          GFH
+       JEQ  CMPRS        No, go compress it                             GFH
+       BL   @GETBYT      Yes, get high byte of data word                GFH
+       MOVB @LR3LB,R0    Save high byte                                 GFH
+       BL   @GETBYT      Get low byte of data word                      GFH
+       A    R3,R0        Add in low byte                                GFH
+       B    *R10         Return to caller                               GFH
+CMPRS  LI   R9,4         Four bytes compress to two                     GFH
+CMPRS2 BL   @GETBYT      Get an ASCII character                         GFH
+       BL   @DECODE      Convert it to a hex digit                      GFH
+       SLA  R0,4         Make room for it                               GFH
+       A    R3,R0        Add it in                                      GFH
+       DEC  R9           More to compress?                              GFH
+       JNE  CMPRS2       Yes                                            GFH
+       B    *R10         Return to caller                               GFH
+*                                                                       GFH
+*** Convert ASCII character to hexadecimal value                        GFH
+*                                                                       GFH
+DECODE AI   R3,-'0'      Subtract an ASCII zero                         GFH
+       CI   R3,>A        If it's 0-9, then it's done                    GFH
+       JL   DECRTN       Yes                                            GFH
+       AI   R3,-7        Otherwise, subtract seven more                 GFH
+       CI   R3,'I'-'0'   'I' tags are the limit                         GFH
+       JH   BADTAG       Higher than 'I' gets an error                  GFH
+DECRTN RT                Return to caller                               GFH
+*                                                                       AH
+*** Check DEF/REF stack for unresolved references                       AH
+*                                                                       AH
+CHKREF MOV  @PREDEF,R1   Point to next to pre-DEF sym                   AH
+       JMP  CHKRF3                                                      AH
+CHKRF2 AI   R1,-8        Point to next DEF/REF table entry              AH
+CHKRF3                                                                  AH
+       MOV  *R1,R0       Is it an unresolved reference?                 AH
+       JLT  URRERR       Yes, so error off                              AH
+       C    @LAST,R1     End of DEF/REF table?                          AH
+       JNE  CHKRF2       No, continue                                   AH
+       INCT R11          SKIP ERROR RETURN                              AH
+       RT                Return to caller                               AH
+URRERR LI   R0,ERRIUN    "IMPROPERLY USED NAME"                         AH
+       RT                Return error to calling program                AH
+*                                                                       AH
+*** Read a record from the file                                         AH
+*                                                                       AH
+GETREC                                                                  AH
+*       MOV  R11,@LOADRT  SAVE RETURN                                   GFH
+*GETRE1                                                                 GFH
+*      BL   @GETBAS      MAP IN REGULAR MAP FILE                        GFH
+       MOV  @SAVPAB,@SCNAME SET UP FOR DSRLNK                           AH
+       BLWP @DSRLNK      VDPIO                                          AH
+       DATA 8            DSR ACCESS CODE                                AH
+       JNE  NOERR        A LOADER ERROR?                                AH
+       B    @RDERR       YES                                            GFH
+NOERR                                                                   AH
+       MOV  @SAVOP,R0                                                   GFH
+       INCT R0           Point to buf ptr in PAB                        GFH
+       LI   R1,LDRWSP    Point to destination (R0)                      GFH
+       LI   R2,2         Read 2 bytes                                   GFH
+       BLWP @VMBR        Get buf ptr                                    GFH
+       LI   R1,RECORD    Point to CPU data buffer                       AH
+       LI   R2,80        Read 80 bytes (FIXED 80)                       GFH
+       BLWP @VMBR        Read the record into CPU RAM                   AH
+       CLR  R8           Clear the checksum                             AH
+*      BL   @GETALC      LOAD IN ASSEM LANG MAP !!!!                    GFH
+*      JMP  GETBY2                                                      GFH
+GETBYT                                                                  GFH
+*      MOV  R11,@LOADRT  SAVE RETURN                                    GFH
+*GETBY2                                                                 GFH
+       DEC  R2           Decrement character count                      GFH
+       JLT  GETREC       End of record, fetch another one               GFH
+       MOVB *R1+,R3      Get a byte and increment buffer ptr            AH
+       SRL  R3,8         Right justify                                  AH
+       A    R3,R8        Update checksum                                AH
+*      MOV  @LOADRT,R11                                                 GFH
+       RT                Return to caller                               GFH
+**                                                                      AH
+*GIOERR LWPI LDRWSP       Select the proper workspace                   GFH
+*      CLR  R0           Clear the error flags                          GFH
+*GIOER2 SWPB R0                                                         GFH
+*      B    @LDERR       Return error to calling program                GFH
+*-----------------------------------------------------------            GFH
+* PLACE OPCODE INTO PAB / RESTORE FLAG/STATUS BYTE                      GFH
+*-----------------------------------------------------------            GFH
+SETOP                                                                   GFH
+       MOV  @SAVOP,R0    VDP ADDRESS OF PAB OPCODE BYTE                 GFH
+SETOP1                                                                  GFH
+       LI   R2,2         2 BYTES TO MOVE                                GFH
+       MOV  R11,R1       ADDRESS OF OPCODE,FLAGS                        GFH
+       BLWP @VMBW        WRITE THEM TO PAB                              GFH
+       INCT R11          CORRECT RETURN                                 GFH
+       RT                AND DO IT                                      GFH
+*-----------------------------------------------------------            GFH 8/04
+* CLOSE THE FILE FOR BOTH NORMAL AND ERROR TERMINATION                  GFH 8/04
+* OF THE LOADER                                                         GFH 8/04
+*-----------------------------------------------------------            GFH 8/04
+CLSIT                                                                   GFH 8/04
+       MOV  R11,R10                                                     GFH 8/04
+       BL   @SETOP                                                      GFH 8/04
+       DATA >0104   Close OP code                                       GFH 8/04
+       MOV  @SAVPAB,@SCNAME   FOR THE DSRLNK                            GFH 8/04
+       BLWP @DSRLNK      Go close file                                  GFH 8/04
+       DATA 8                                                           GFH 8/04
+       B    *R10    RETURN (won't affect status)                        GFH 8/04
+*                                                                       GFH 8/04
+       PAGE                                                             GFH 8/04
+************************************************************            AH
+* CALL LINK("FILE NAME",PARAMETER,...,PARAMETER)                        AH
+*       SETS UP A 16 BYTE LIST DESCRIBING THE PARAMETERS                AH
+*       THE 7 TYPES OF ARGUMENTS & THE IDENTIFIER BITS:                 GFH
+*                                                                       GFH
+*                                                                       GFH
+*          BIT POSITIONS  |                                             GFH
+*                         | MEANING WHEN SET                            GFH
+*          0|1|2|3|4|5|6|7|                                             GFH
+*          -+-+-+-+-+-+-+-+-----------------------                      GFH
+*           | | | | | | |*| PASSED BY REFERENCE                         GFH
+*          -+-+-+-+-+-+-+-+-----------------------                      GFH
+*           | | | | | |*| | ARRAY                                       GFH
+*          -+-+-+-+-+-+-+-+-----------------------                      GFH
+*           | | | | |*| | | STRING                                      GFH
+*          -+-+-+-+-+-+-+-+-----------------------                      GFH
+*           | | | |*| | | | INTEGER                                     GFH
+*                                                                       GFH
+*                                                                       GFH
+*          BIT POSITIONS  |                                             GFH
+*                         | MEANING WHEN SET                            GFH
+*  HEX     0|1|2|3|4|5|6|7|                                             GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  00       | | | | | | | | NUMERIC REAL SCALER PASSED BY VALUE         GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  01       | | | | | | |*| NUMERIC REAL SCALER PASSED BY REFERENCE     GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  03       | | | | | |*|*| NUMERIC REAL ARRAY PASSED BY REFERENCE      GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  04       | | | | |*| | | STRING SCALER PASSED BY VALUE               GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  05       | | | | |*| |*| STRING SCALER PASSED BY REFERENCE           GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  07       | | | | |*|*|*| STRING ARRAY PASSED BY REFERENCE            GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  08       | | | |*| | | | INTEGER SCALER PASSED BY VALUE              GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  09       | | | |*| | |*| INTEGER SCALER PASSED BY REFERENCE          GFH
+* ----------+-+-+-+-+-+-+-+-----------------------                      GFH
+*  0B       | | | |*| |*|*| INTEGER ARRAY PASSED BY REFERENCE           GFH
+*                                                                       GFH
+************************************************************            AH
+LINK                                                                    AH
+       MOVB @RMAP3,@MAPPER    SAVE CURRENT BASIC MAP                    GFH
+       BL   @PUTSTK                                                     AH
+       BL   @SETREG
+* INIT MUST HAVE BEEN CALLED.                                           AH
+       C    @USALC+2,@CMFNCE+2  IS SPACE ALLOC FOR PGM?                 AH
+       JNE  GOTRM1       YES                                            AH
+       C    @USALC,@CMFNCE                                              AH
+       JNE  GOTRM1       NO-ERROR                                       AH
+       LI   R0,ERRNPP    "NO PROGRAM PRESENT"                           AH
+BERR2  B    @ERR                                                        ATA 8/05
+STERR                                                                   AH
+       LI   R0,ERRSNM    "STRING-NUMBER MISMATCH"                       AH
+       JMP  BERR2                                                       ATA 8/05
+GOTRM1                                                                  AH
+       BL   @SYNTAX      CHECK FOR '('                                  AH
+       DATA LPAR$*256    AND SKIP IT                                    AH
+       BL   @PARSE       PARSE THE FILE NAME                            AH
+       BYTE RPAR$        UP TO COMMA OR ')'                             AH
+BYTEB8                                                                  AH
+       BYTE >B8                                                         AH
+       CB   @FAC+2,@BYTE80  STRING?                                     AH
+       JL   STERR        NO- ERROR; STRING/# MISMATCH                   AH
+       MOV  @FAC,R1                                                     AH
+       CI   R1,6         NAME MUST HAVE 6 CHARS OR LESS                 AH
+       JLE  NOER1                                                       GFH
+       B    @BADARG      ELSE ERROR- BAD ARGUMENT                       GFH
+NOER1  BL   @CPUSH       PUSH NAME TO MAKE SEMI-PERMANENT               GFH
+       MOV  @VSPTR,@OLDS SAVE VALUE STACK POINTER FOR LATER             AH
+       CLR  @CNT         CLEAR THE PARAMETER COUNTER                    AH
+       LI   R1,PARM      SET INITIAL ADDR FOR COUNTER                   AH
+       MOV  R1,@PRMPTR                                                  AH
+* NOW CHECK FOR PARAMETERS                                              AH
+PAR01                                                                   AH
+       CI   R8,RPAR$*256 NO PARAMS?                                     AH
+       JNE  PARAMS                                                      GFH
+       B    @EXE01       THEN JUST EXECUTE                              GFH
+PARAMS                                                                  GFH
+       BL   @SYNTAX      MUST BE A COMMA                                AH
+       DATA COMMA$*256   ELSE ERROR                                     AH
+* CONTINUE WITH PARAMETER EXECUTION HERE                                AH
+       MOVB @BYTE0,@MAKPAR   CLEAR PARAMETER TYPE BITS                  GFH
+       MOV  @PGMPTR,@SPAREP  SAVE THE TEXT POINTER-FOR PARSE            GFH
+       MOVB R8,R8        IF CHAR IS A TOKEN                             GFH
+       JLT  VAL01        THEN PASSING PARAM BY VALUE                    AH
+* SO HERE KNOW IT'S PASSED BY REFERENCE,IE A VARIABLE NAME              AH
+       BL   @SYM         GET THE SYMBOL TABLE INFO                      AH
+* FAC HAS S.T. INFO & S.T. ENTRY IS MAPPED IN STRWIN                    AH
+* CHECK FOR A UDF                                                       AH
+       MOV  @STRWIN,R1   BIT IN FLAG FOR UDF                            AH
+       COC  @UDFBIT,R1   SEE IF UDF FLAG IS ON                          AH
+       JEQ  VAL01        IS UDF; PASS BY VALUE!                         AH
+       CI   R8,COMMA$*256  THAT'S IT; PASS BY REFERENCE                 AH
+       JEQ  REF01                                                       AH
+       CI   R8,RPAR$*256 DONE; PASS BY REFERENCE                        AH
+       JEQ  REF01                                                       AH
+       CI   R8,LPAR$*256 HAVE AN ARRAY?                                 AH
+       JEQ  ARRAY        YES-SPECIAL                                    AH
+       MOV  R8,R8        IF 0, ERROR                                    AH
+       JNE  VAL01        IF NOT 0, HAVE TOKEN                           AH
+       B    @SERR        ERROR-SYNTAX ERROR                             AH
+*                                                                       AH
+ARRAY                                                                   AH
+* SHOULD LOOK LIKE A(,,) ETC                                            AH
+*                                                                       GFH
+*      HERE SET ARRAY BIT IN PARAMETER STACK ENTRY                      GFH
+       AB   @ARRBIT,@MAKPAR                                             GFH
+       BL   @PGMCHR      GET NEXT CHAR                                  AH
+       CI   R8,RPAR$*256 PASS BY REFERENCE                              AH
+       JEQ  ARRAY2                                                      AH
+       CI   R8,COMMA$*256 MORE ARRAY INFO                               AH
+       JEQ  ARRAY                                                       AH
+       DEC  @PGMPTR      ADJUST THE POINTER                             AH
+       LI   R8,LPAR$*256                                                AH
+       JMP  REF01        PASS BY REFERENCE                              AH
+*                                                                       AH
+ARRAY2                                                                  AH
+       BL   @PGMCHR      GET NEXT CHARACTER                             AH
+* S.T. ENTRY IS STILL MAPPED IN STRWIN                                  AH
+* CHECK FOR A STRING VS NUMERIC                                         AH
+       MOV  R1,R2  SAVE FOR MORE WORK                                   GFH
+       SRL  R2,4   SHIFT STRING OR INTEGER BIT TO LSN OF MSB            GFH
+       AB   R2,@MAKPAR                                                  GFH
+       AB   @BYREF,@MAKPAR    SET "PASSED BY REFERENCE BIT"             GFH
+************************************************************            GFH
+*    NOW FIND AND CALCULATE THE VALUE SPACE POINTER        *            GFH
+*                                                          *            GFH
+************************************************************            GFH
+       BL   @SMB000                                                     GFH
+       JMP  NUMBR                                                       AH
+*                                                                       AH
+VAL01                                                                   AH
+* PASSING THE PARAMETER BY VALUE                                        AH
+                                                                        GFH
+       MOV  @SPAREP,@PGMPTR   RESTORE THE PGM POINTER                   AH
+       DEC  @PGMPTR                                                     GFH
+       BL   @PGMCHR           NOW RESTORE R8                            GFH
+       BL   @PARSE       PARSE UP TO A COMMA OR ")"                     AH
+       BYTE RPAR$                                                       GFH
+BYREF  BYTE >01          UNUSED BYTE FOR CONSTANT                       GFH
+* AFTER A PARSE, FAC AREA HAS # OR STRING INFO                          AH
+       CLR  R2           FLAG=0 FOR A NUMERIC                           AH
+       CB   @FAC+2,@BYTE6B    INTEGER                                   GFH
+       JNE  CHKSTR                                                      GFH
+       AB   @INTBIT,@MAKPAR   SET INTEGER BIT                           GFH
+CHKSTR                                                                  GFH
+       CB   @FAC+2,@BYTE80    STRING?                                   AH
+       JL   NUMBR        NO                                             AH
+       AB   @STRBIT,@MAKPAR   SET STRING BIT                            GFH
+       JMP  NUMBR        PUSH INTO STACK                                AH
+REF01                                                                   AH
+* PASSING THE PARAMETER BY REFERENCE                                    AH
+       MOV  R1,@PARSAV   SAVE 1ST WORD OF SYMBOL TABLE ENTRY            GFH
+       BL   @SMB         GET ARRAY INFO                                 AH
+       CB   R8,@BYTEB8   PASS ARRAY EXPRESSION                          AH
+       JHE  VAL01                                                       AH
+       MOV  @PARSAV,R1   RESTORE R1                                     GFH
+       SRL  R1,4   SHIFT STRING OR INTEGER BIT TO LSN OF MSB            GFH
+       AB   @BYREF,R1                                                   GFH
+       MOVB R1,@MAKPAR                                                  GFH
+NUMBR                                                                   AH
+       MOV  @PRMPTR,R1   WHERE IN PARAM LIST TO STRORE INFO             AH
+       MOVB @MAKPAR,*R1                                                 GFH
+* NOW PUSH FAC ENTRY ONTO VALUE STACK                                   AH
+       INC  @CNT         INCREMENT # OF PARAMETERS                      AH
+       C    @CNT,@C16    CAN'T HAVE MORE THAN 16 PARAMS                 AH
+       JH   BADARG       ERROR- BAD ARGUMENT                            AH
+       INC  @PRMPTR      INCREMENT PARAMETER ADDR                       AH
+       BL   @CPUSH       PUSH VALUE                                     AH
+       B    @PAR01                                                      GFH
+*                                                                       AH
+BADARG                                                                  AH
+       LI   R0,ERRBA                                                    AH
+       B    @ERR                                                        AH
+EXE01                                                                   AH
+       BL   @PGMCHR      MOVE PAST THE RIGHT PAREN                      AH
+       MOV  @OLDS,R4     CHECK FOR PERM/TEMP STRING                     AH
+       MOV  *R4,R0       EMPTY STR- RUN OLD PGM AGAIN                   AH
+       JEQ  EXE06                                                       AH
+       MOV  @4(R4),R2    ADDR OF STR OR S.T. ENTRY HERE                 AH
+       MOV  @6(R4),R3                                                   AH
+       XOP  R2,3         AND MAP IN STRING OR S.T. ENTRY                AH
+       DATA STMAP                                                       AH
+       CB   @2(R4),@BYTE80                                              AH
+       JNE  TEMPST       TEMP STRING-ALREADY MAPPED INTO STR            AH
+       XOP  @STRWIN,3    MAP IN THE STRING ITSELF                       AH
+       DATA STMAP                                                       AH
+TEMPST                                                                  AH
+       MOV  *R4,R4       PUT LENGTH OF NAME IN R4                       AH
+*                                                                       AH
+       LI   R2,FAC                                                      AH
+       LI   R5,STRWIN                                                   AH
+       MOV  *R5+,*R2+    MOVE THE NAME INTO FAC                         AH
+       MOV  *R5+,*R2+                                                   AH
+       MOV  *R5+,*R2+                                                   AH
+       BL   @GETALC      LOAD ASSM LANG MEMORY MAP                      GFH
+       BL   @CHKREF      CHECK FOR UNRESOLVED REFERENCES                AH
+       JMP  NAMERR                                                      AH
+EXE02                                                                   AH
+       MOV  R4,R0        GET LENGTH OF NAME                             AH
+       MOV  R1,R5        R5=ADDR IN TABLE OF CURRENT NAME               AH
+       LI   R2,FAC       POINT TO NAME TO HUNT FOR                      AH
+       C    R1,@PREDEF    ARE THERE ANY USER DEFINED LABELS?            AH
+       JEQ  NAMERR       NO, SO ERROR                                   AH
+* COMPARE THE NEXT LABEL                                                AH
+EXE03                                                                   AH
+       CB   *R2+,*R5+    A MATCH?                                       AH
+       JNE  EXE04        NO-CHECK NEXT NAME                             AH
+       DEC  R0                                                          AH
+       JNE  EXE03                                                       AH
+* HAVE A MATCH                                                          AH
+       MOV  @6(R1),@ENTADD  DEFAULT ENTRY POINT FOR RERUN               AH
+EXE06                                                                   AH
+       BL   @SAVREG                                                     GFH
+       BL   @GETSTK      RESTORE GPL PC                                 GFH
+       LWPI USRWSP       SELECT USER'S WORKSPACE                        AH
+       MOV  @ENTADD,R0   FETCH ENTRY POINT TO PGM                       AH
+       JEQ  NAMERR       ERROR- NO ADDRESS SPECIFIED                    AH
+       BL   @GETALC      LOAD ASSM LANG MEMORY MAP                      GFH
+       BL   *R0          EXECUTE THE SUBPROGRAM                         AH
+* IN CASE USER RETURNED WITH "B *R11", SKIP NEXT GPL                    AH
+* INSTRUCTION, WHICH SIMPLY RETURNS US TO ASMCON.                       AH
+* NOW, BOTH "B @NEXT" AND "B *R11" WILL GRACEFULLY RETURN               AH
+* US TO BASIC.                                                          AH
+       MOVB @GRMRD,R1                                                   AH
+       MOVB @GRMRD,R1                                                   AH
+ASMCON                                                                  AH
+       LWPI GPLWS        RESTORE GPL WORKSPACE                          AH
+       BL   @SETREG                                                     AH
+       BL   @GETBAS      RESTORE BASIC'S MAP                            GFH
+POPLP                                                                   GFH
+       C    @OLDS,@VSPTR                                                GFH
+       JEQ  ASMRTN                                                      GFH
+       BL   @CPOP        RESTORE VALUE STACK POINTER                    GFH
+       JMP  POPLP                                                       GFH
+ASMRTN                                                                  GFH
+       BL   @CPOP        AND POP OFF ASSM PROG NAME                     GFH
+       B    @NEXT        RETURN                                         AH
+EXE04                                                                   AH
+       AI   R1,8         POINT TO NEXT REF/DEF ENTRY                    AH
+       JMP  EXE02        AND CHECK IT FOR A MATCH                       AH
+NAMERR                                                                  AH
+       LI   R0,ERRSNF    ERROR-SUBPROGRAM NOT FOUND                     AH
+       JMP  ERREN0                                                      GFH
+*                                                                       AH
+****                                                                    AH
+*                                                                       AH
+       PAGE                                                             GFH
+************************************************************            GFH
+*      KEYBOARD SCAN                                                    GFH
+*                                                                       GFH
+KSENTR  LWPI GPLWS                                                      GFH
+       MOV  R11,@UTILWS+22   Save GPL return address                    GFH
+       BL   @SCAN                                                       GFH
+       LWPI UTILWS                                                      GFH
+       MOV  R11,@GPLWS+22    Restore GPL return address                 GFH
+       RTWP                                                             GFH
+                                                                        GFH
+************************************************************            GFH
+* XMLLNK                                                                GFH
+*                                                                       GFH
+XMLLEN                                                                  GFH
+       MOV  *R14+,R0                                                    GFH
+       SWPB R0                                                          GFH
+       AI   R0,>0100      XML2 INSTRUCTION                               GFH
+       XOP  6,6                                                         GFH
+       RTWP                                                             GFH
+************************************************************            GFH
+* ERR return to BASIC's error handler from user's assm prog             GFH
+ERRENT                                                                  GFH
+       LI   R0,3         TELL BASIC THIS IS AN ERROR EXIT               GFH
+       MOVB *R13,R0      TACK ON USERS ERROR NUMBER                     GFH
+ERREN0                                                                  GFH
+       B    @LDERR                                                      GFH
+*                                                                       GFH
+       PAGE                                                             GFH
+GETBAS                                                                  GFH
+       MOVB @LMAP3,@MAPPER                                              GFH
+       JMP  GETM0                                                       GFH
+GETALC                                                                  GFH
+       MOVB @LMAP2,@MAPPER                                              GFH
+GETM0                                                                   GFH
+       MOVB @RMAP0,@MAPPER                                              GFH
+       RT                                                               GFH
+       PAGE                                                             GFH
+*                                                                       AH
+*** Jump table to tag processors                                        AH
+*                                                                       AH
+TAGTBL BYTE (TAG0-JUMP)/2                                               AH
+       BYTE (TAG1-JUMP)/2                                               AH
+       BYTE (TAG2-JUMP)/2                                               AH
+       BYTE (TAG3-JUMP)/2                                               AH
+       BYTE (TAG4-JUMP)/2                                               AH
+       BYTE (TAG5-JUMP)/2                                               AH
+       BYTE (TAG6-JUMP)/2                                               AH
+       BYTE (TAG7-JUMP)/2                                               AH
+       BYTE (TAG8-JUMP)/2                                               AH
+       BYTE (TAG9-JUMP)/2                                               AH
+       BYTE (TAGA-JUMP)/2                                               AH
+       BYTE (TAGB-JUMP)/2                                               AH
+       BYTE (TAGC-JUMP)/2                                               AH
+       BYTE (TAGD-JUMP)/2                                               AH
+       BYTE (TAGE-JUMP)/2                                               AH
+       BYTE (TAGF-JUMP)/2                                               AH
+       BYTE (TAGG-JUMP)/2                                               AH
+       BYTE (TAGH-JUMP)/2                                               AH
+       BYTE (TAGI-JUMP)/2                                               AH
+       BYTE 0  Make it even without generating an address tag           AH
+UTLEND EQU  $            End of utilities                               AH
+       END                                                              AH
