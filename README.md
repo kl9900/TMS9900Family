@@ -1,2 +1,5 @@
 # TMS9900Family
 Vintage Texas Instruments Cpu System Source Code
+
+This is meant to become the one stop to get and commit system source code for any computer running a vintage Texas Instruments Cpu, be it the TMS9900 Processor Family, the TMS99000 Processor Family or the TMS7000 Processor Family. Knowns Computers by Texas Instruments are the TI-99/4, the TI-99/4A, the TI-99/8, the TI-99/2, the TI-99/5, the CC-40, the CC-40 Plus and even the later portables like the TI-74 and TI-95. Texas Instruments also released a series of Business Machines and Mini Computers under the names Model 990, DS-990 and TI-990. Further Computers are the Tomy Tutor, the Tomy Pyuta, the Tomy Pyuta MKII and the Tomy Pyuta Jr. There is further known the Sanyo PHC 3100, the Powertran Cortex, the Myarc Geneve 9640, the Technico SS-16 and the Technico TEC-9900-SS.
+The typical commited files will be Assembler source code and GPL (Graphics programming Language) source code, compiled source code of those, and potentially high level language source code.
