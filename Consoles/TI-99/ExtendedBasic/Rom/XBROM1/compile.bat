@@ -1,0 +1,1 @@
+xas99.py -R control0.asm -L xbrom1.lst -S -b -o xbrom1.bin
