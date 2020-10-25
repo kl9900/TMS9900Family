@@ -1,0 +1,1 @@
+xas99.py -R control0.asm -L tutor2.lst -S -b -o tutor2.bin
