@@ -1,0 +1,283 @@
+ 
+ 
+ 
+*************************************************************
+*                    SAVE STATEMENT                         *
+* SAVE "NAME", MERGE : Save in crunched form in program     *
+*  into a file one line at at time with the line number.    *
+*  File opened with sequential accessed, variable-length    *
+*  records (161 max), display type & output mode, move one  *
+*  line number and one in text to the crunch buffer then    *
+*  write to the file one line at a time.                    *
+* A normal SAVE : When ERAM not exist or the size of the    *
+*  program and line number table in ERAM can fit in VDP     *
+*  (can be moved into VDP from ERAM once), then the save    *
+*  statement saves a program image to an external device,   *
+*  including all the information the system needs for       *
+*  rebuilding the program image on a machine with a         *
+*  different memory size, also included is a checksum for   *
+*  rudimentary error checking and for PROTECTION VIOLATION  *
+* A sequential SAVE : Maximum-length records are performed  *
+*  to write the file and each record is copied into the VDP *
+*  from ERAM before it is written.                          *
+*************************************************************
+SAVE   CLOG >80,@FLAG         * PROTECTION VIOLATION         <<<<DELETE THIS<<<<
+       BR   ERRPV                                            <<<<DELETE THIS<<<<
+       CALL GPNAME            This will also close all files
+* Check SAVE "NAME", MERGE or SAVE "NAME", PROTECTED first
+       CLR  V@SAPROT          Clear "PROTECTED" flag         <<<<KEEP THIS<<<<<<
+       XML  PGMCHR
+       CZ   @CHAT             EOL?
+       BS   SAZ1              Yes, no need to check any option
+       CEQ  COMMAZ,@CHAT      Has to be a comma here
+       BR   ERRSYN
+       DCEQ >C805,V*PGMPTR    Unquoted string with length 5 : <<<<<<<<<<<<<<<<<
+*                              has to be MERGE at this time
+       BR   G8DF4
+       DCEQ >4D45,V@2(@PGMPTR) "ME" of MErge                 <<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       DCEQ >5247,V@4(@PGMPTR) "RG" of meRGe                 <<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       CEQ  >45,V@6(@PGMPTR)   "E" of mergE                  <<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       CZ   V@7(@PGMPTR)      Check for EOL
+       BR   ERRSYN            Not EOL : SYNTAX ERROR
+       BR   SAVMG             Go to handle this option
+* Has to be PROTECTED option here, crunched as unquoted string
+G8DF4  DCEQ >C809,V*PGMPTR    Unquoted string with length 9 :  <<<DELETE THIS<<<
+*                              has to be PROTECTED
+       BR   ERRSYN
+       DCEQ >5052,V@2(@PGMPTR) "PR" of PRotected               <<<DELETE THIS<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       DCEQ >4F54,V@4(@PGMPTR) "OT" of prOTected               <<<DELETE THIS<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       DCEQ >4543,V@6(@PGMPTR) "EC" of protECted               <<<DELETE THIS<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       DCEQ >5445,V@8(@PGMPTR) "TE",of protecTEd               <<<DELETE THIS<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       CEQ  >44,V@10(@PGMPTR)  "D" of protecteD                <<<DELETE THIS<<<
+       BR   ERRSYN             If not : SYNTAX ERROR
+       CZ   V@11(@PGMPTR)     Check EOL                        <<<<<<<<<<<<<<<<<
+       BR   ERRSYN                                             <<<<<<<<<<<<<<<<<
+       INC  V@SAPROT                                           <<<DELETE THIS<<<
+*************************************************************
+SAZ1   CZ   @RAMTOP           If ERAM NOT present then         <<<<<<<<<<<<<<<<<
+       BR   G8E42
+***** CLEAR THE BREAKPOINT IN VDP ALONE TO SPEED UP *********
+       DST  @STLN,@FAC8       End of line # buffer
+G8E33  AND  >7F,V*FAC8        Clear the breakpoint            <<<<<<<<<<<<<<<<<
+       DADD 4,@FAC8           Move to the next one
+       DCH  @ENLN,@FAC8       Until done
+       BR   G8E33
+       BR   VSAVZ
+G8E42  CALL UBSUB             Clear the breakpoint in ERAM    <<<<<<<<<<<<<<<<<<
+       DST  @RAMTOP,@MNUM     Top of memory in ERAM
+       DSUB @STLN,@MNUM
+       DINC @MNUM             # of bytes total in ERAM        <<<<<<<<<<<<<<<<<<
+       DST  @>8370,@VAR0      Top of memory in VDP            <<<<<<<<<<<<<<<<<<
+       DSUB @MNUM,@VAR0
+       DINC @VAR0
+* Check is there enough memory in VDP to move the program
+*  text and line number table from ERAM to VDP
+       GT                  Not enough memory in VDP for sure
+       BR   GSAVE
+       DST  VRAMVS+64+256,@VAR5 * 64 bytes ar for safety buffer
+* DSR routine give file error when loading a program which has
+*  VDP maximum size and was saved from VDP to be a program file
+*  on disk when ERAM not exist. In order to fix this problem,
+*  restrict the program memory to be 256 bytes less then the
+*  real space in VDP when ERAM not exist.
+       DCHE @VAR5,@VAR0       Not enough memory in VDP, do a
+*                              sequential file save
+       BR   GSAVE
+       DSUB 10,@VAR5        * 10 bytes for control information
+       CALL GVMOV             Enough memory in VDP, move it
+*                             over and do the normal save later
+**************** Without ERAM, or after GVMOV ***************
+**************** do the normal save           ***************
+VSAVZ  DST  @FREPTR,@STADDR   Store additional control info
+       DDEC @STADDR           Back up some more for 2 byte save
+       DST  @>8370,V*STADDR   First current top of memory
+       DDECT @STADDR
+       DST  @STLN,V*STADDR    Then STLN
+       DDECT @STADDR
+       DST  @ENLN,V*STADDR    Then ENLN
+       DDECT @STADDR          Then
+       DST  @STLN,V*STADDR
+       DXOR @ENLN,V*STADDR    STLN XORed with ENLN
+       CEQ  1,V@SAPROT        Check is there PROTECTED option  <<<<<<<<<<<<<<<<<
+       BR   G8E91
+       DNEG V*STADDR          Negate the CHECKSUM to indicate  <<<<<<<<<<<<<<<<<
+*                             LIST/EDIT protection
+G8E91  DST  @STADDR,V@BUF(@PABPTR)  Save start address in PAB  <<<<<<<<<<<<<<<<<
+       DDEC @STADDR
+       DST  @>8370,V@RNM(@PABPTR)   Compute # of bytes used
+       DSUB @STADDR,V@RNM(@PABPTR)   and store that in PAB too
+       CZ   @RAMTOP           If ERAM exists then              <<<<<<<<<<<<<<<<<
+       BS   G8EAD
+       DST  @BBB1,@STLN       Restore the original STLN, ENLN
+       DST  @CCC1,@ENLN        which points to ERAM
+G8EAD  CALL IOCALL            Call Device Service Routine for
+       BYTE CZSAVE          * SAVE operation
+LRTOPL CALL KILSYM            Release string space/symbol table
+       B    TOPL15            Go back to toplevel
+*************************************************************
+* Open the sequential file, set the PAB
+* File type             : sequential file
+* Mode of operation     : output
+* Data type             : internal
+* Record type           : variable length records
+* Logical record length : 254 maximum
+GSAVE  MOVE 9,G@PAB3,V@4(@PABPTR) Build the PAB
+       DECT V@FLG(@PABPTR)    Put in the correct I/O mode :>1A
+* Compute the data buffer address
+       DST  @>8370,@FAC
+       DSUB 253,@FAC
+       DST  @FAC,V@BUF(@PABPTR)
+       DST  @FAC,@EEE1     Save it for later use in GVWITE
+       CALL CDSR           Call device service routine to open
+       BR   ERRZ2B         Return with ERROR indication in COND
+*                          Put 8 bytes control info at the
+*                          beginning of the data buffer
+       DST  >ABCD,V*FAC       >ABCD indentifies a program file <<<<<<<<<<<<<<<<<
+       DINCT @FAC              when doing LOAD later           <<<<<<<<<<<<<<<<<
+       DST  @STLN,V*FAC       Save STLN in control info
+       DINCT @FAC
+       DST  @ENLN,V*FAC       ENLN too
+       DINCT @FAC
+       DST  @STLN,V*FAC
+       DXOR @ENLN,V*FAC       Save the checksum
+       CEQ  1,V@SAPROT        Check is there PROTECTED option <<<<<<<<<<<<<<<<<<
+       BR   G8EFB
+       DNEG V*FAC             Negate the CHECKSUM to indicate <<<<<<<<<<<<<<<<<<
+*                              the LIST/EDIT protection
+G8EFB  DINCT @FAC
+       DST  @RAMTOP,V*FAC     Save the top of memory info
+       ST   10,V@CNT(@PABPTR) Set the caracter count in PAB
+       CALL IOCALL            Call device service routine
+       BYTE CZWRIT          * With I/O opcode : write, to save
+*                       the control info for the first record
+* Now start to use maximum-length record to write the file
+* and each record is copied into the VDP from ERAM bofore it
+* is written
+       DST  @STLN,@DDD1       Starting address on ERAM
+*      DST  @>8370,@EEE1      @EEE1 has been set up before
+*      DST  253,@EEE1         Starting address of the data
+*                              buffer on VDP
+       DST  @RAMTOP,@CCC1
+       DSUB @STLN,@CCC1
+       DINC @CCC1
+       ST   254,V@CNT(@PABPTR) Set the character count of PAB
+G8F1C  DST  254,@FFF1         @FFF1 byte count
+       XML  GVWITE            Move data from ERAM to VDP
+       CALL IOCALL            Call device service routine
+       BYTE CZWRIT
+       DADD 254,@DDD1         Update the source addr on ERAM
+       DSUB 254,@CCC1         # of bytes left to move
+       BS   GSAV1             No more bytes to save
+       DCHE 254,@CCC1         Leave the last record alone
+       BS   G8F1C
+* Move the last @CCC1 bytes from ERAM to VDP
+       DST  @CCC1,@FFF1       @FFF1 : Byte count
+       XML  GVWITE            Write data from ERAM to VDP
+       ST   @CCC1+1,V@CNT(@PABPTR) Update the character count
+*                                   in PAB
+       CALL IOCALL            Call device service routine
+       BYTE CZWRIT
+GSAV1  CALL IOCALL
+       BYTE CZCLOS          * Close the file
+       BR   LRTOPL            Continue
+*************************************************************
+* Move the program text & line # table to VDP, and relocate
+GVMOV  DST  @STLN,@BBB1       Save STLN, ENLN for later use
+       DST  @ENLN,@CCC1
+       DST  @STLN,@DDD1       Source addr on ERAM
+       DST  @VAR5,@EEE1       Destination addr on VDP
+       DST  @EEE1,@STADDR     Use later for RELOCA
+       DST  @RAMTOP,@FFF1
+       DSUB @STLN,@FFF1       # of bytes to move
+       DINC @FFF1             @FFF1 : byte count for GVWITE
+       XML  GVWITE            Move from ERAM to VDP
+       DST  @RAMTOP,V@OLDTOP  Set up @RAMTOP for old top
+*                             of memory
+       DST  @>8370,V@NEWTOP   Set up @>8370 for new top
+*                             of memory
+       CALL RELOCA            Relocate the program
+       DST  @STLN,@FREPTR     Set up @FREPTR
+       DDEC @FREPTR
+       RTN
+*************************************************************
+* Save the crunched form of a program into a file.          *
+* Move the line number and text to the crunch buffer, then  *
+* write to the file one line at a time.                     *
+*************************************************************
+* Open the file with:
+*  I/O opcode            : OPEN
+*  File type             : SEQUENTIAL file
+*  Mode of operation     : OUTPUT
+*  Data type             : DISPLAY type data
+*  Record type           : VARIABLE LENGTH records
+*  Data buffer address   : Crunch buffer address
+*  Logical record length : 163 (length of curnch buffer + 2
+*                                bytes for line #) maximum
+SAVMG  MOVE 9,G@PAB1,V@4(@PABPTR) Build PAB
+       CALL IOCLZ1         Call the DSR routine to open file
+       DST  @ENLN,@FAC6    Start from the first line #
+       DSUB 3,@FAC6        @FAC6 now points to the 1st line #
+*                          Write to the file from crunch buffer
+*                           one line at a time
+G8F88  CLR  @VAR0             Make it a two byte later
+       CZ   @RAMTOP           If ERAM exists then
+       BS   G8FB6
+       DST  @FAC6,@DDD1       Write the 4 bytes (line # and
+*                              line pointer) from ERAM to
+*                              crunch buffer
+*                             @DDD1 : Source address on ERAM
+       DST  CRNBUF,@EEE1      @EEE1 : Destination address
+*                                      on VDP
+       DST  4,@FFF1           @FFF1 : byte count
+       XML  GVWITE            Write data from ERAM to VDP
+       DST  V@CRNBUF+2,@DDD1  Line pointer now points to
+*                              length byte
+       DDEC @DDD1             Get the length of this line
+*                             @DDD1 : Source address on ERAM
+       DINC @FFF1             @FFF1 : Byte count, coming back
+*                                     from GVWITE above, =0
+       XML  GREAD1            Read the length byte from ERAM
+       ST   @EEE1,@VAR0+1     @EEE1 : Destination addr on CPU
+       DST  CRNBUF+2,@EEE1    Write the text from ERAM to 3rd
+*                             byte of crunch buffer
+*                             @EEE1 : Destination addr on VDP
+*                             @DDD1 : Source addr on ERAM
+       DINC @DDD1             Back to point to the text
+       DST  @VAR0,@FFF1       @FFF1 : Byte count
+       XML  GVWITE            Write data from ERAM to VDP
+       BR   G8FCD             ERAM not exist : line # table
+*                              and text in VDP
+G8FB6  DST  V*FAC6,V@CRNBUF   PUT THE LINE # IN
+       DST  V@2(@FAC6),@FAC2  Get the line pointer out
+       DDEC @FAC2             Line pointer now points to the
+*                              length byte
+       ST   V*FAC2,@VAR0+1    Get the length out
+* Move the text into the crunch buffer
+       MOVE @VAR0,V@1(@FAC2),V@CRNBUF+2
+G8FCD  AND  >7F,V@CRNBUF      Reset possible breakpoint
+       DINCT @VAR0    * Total length=text length+line # length
+       ST   @VAR0+1,V@CNT(@PABPTR) Store in the cahracter count
+       CALL IOCALL            Call the device service routine
+       BYTE CZWRIT          * Write
+       DSUB 4,@FAC6           Go to the next line #
+       DCHE @STLN,@FAC6       Finish moving all
+       BS   G8F88
+       DST  >FFFF,V@CRNBUF    Set up a EOF for the last record
+       ST   2,V@CNT(@PABPTR)  Only write this 2 bytes
+       CALL IOCALL            Call the device service routine
+       BYTE CZWRIT          * Write
+       CALL IOCALL            Call the device service routine
+       BYTE CZCLOS          * Close the file
+       BR   LRTOPL            Go back to top level
+PAB1   BYTE >00,>12,>08,>20,>A3,>00,>00,>00,>60
+*           >0820 = CRNBUF
+*           >A3   = 163
+*           >60   = OFFSET
+ 

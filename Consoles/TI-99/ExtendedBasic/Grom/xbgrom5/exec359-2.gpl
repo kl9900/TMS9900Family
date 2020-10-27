@@ -1,0 +1,194 @@
+ 
+ 
+*************************************************************
+*                     NUD FOR PI                            *
+*************************************************************
+NPI    MOVE 8,G@CONPI,@FAC    Load constant PI
+       XML  CONT
+CONPI  BYTE >40,3,14,15,92,65,35,90
+* 3.1415992653590E+00
+*************************************************************
+*                     NUD FOR MAX                           *
+*************************************************************
+NMAX   CALL MAXMIN            Combine MAX and MIN
+       GT
+       BR   GA263
+NMAXZ1 MOVE 8,@ARG,@FAC
+GA263  XML  CONT
+*************************************************************
+*                     NUD FOR MIN                           *
+*************************************************************
+NMIN   CALL MAXMIN            Combine MAX and MIN again
+       GT
+       BR   NMAXZ1
+       XML  CONT
+*************************************************************
+*                COMMON MAX / MIN ROUTINE                   *
+*************************************************************
+MAXMIN CALL LPAR              Skip "(" parse, and insure ,
+       CH   >63,@FAC2         Must be numeric
+       BS   ERRSNM
+       XML  VPUSH             Push l.h. arg on stack
+       XML  PARSE             PARSE up to ")"
+       BYTE RPARZ
+       CH   >63,@FAC2         Must be numeric
+       BS   ERRSNM
+       XML  SPEED             Must be
+       BYTE SYNCHK        *    at a
+       BYTE RPARZ         *      right parenthesis
+       MOVE 8,@FAC,@ARG       Save in ARG for compare
+       XML  VPOP              Get l.h. arg back
+       XML  FCOMP             Compare operands
+       RTN
+* Initialize random number generator
+INTRND MOVE 10,G@X2SEED,V@RNDX2
+       RTN
+X2SEED BYTE >42,>03,>23,>15,>00 * =   33521, X2 INITIAL VALUE
+X1SEED BYTE >43,>02,>3E,>2A,>17 * = 2624223, X1 INITIAL VALUE
+*************************************************************
+*           PSEUDO-RANDOM NUMBER GENERATOR                  *
+*      X(N+1) = (A*X(N)+C) MOD M;  RND = X/M                *
+*    WHERE:                 X = X2 * 1E7 + X1               *
+*                           A = A2 * 1E7 + A1               *
+*                           C = C2 * 1E7 + C1               *
+*                           M = 1E14                        *
+* ASSUMPTIONS:                                              *
+*  (1) All numbers are integers; fractional parts are       *
+*      truncated                                            *
+*  (2) If the variables listed below start in the ranges    *
+*     specified. They will also end in the ranges specified *
+*                                                           *
+* CONSTANTS: 0 <= A2 < 5E6 ; 0 <= C2 < 1E7                  *
+*            0 <= A1 < 5E6 ; 0 <= C1 < 1E7                  *
+* VARIABLES: 0 <= X2 < 1E7 ; 0 <= T1 <= 1E14 ; 0 <= T2 < 1E7*
+*            0 <= X1 < 1E7 ; 0 <= T3 <= 1E14 ; 0 <= T4 < 1E7*
+*                                                           *
+*        STACK USAGE:                                       *
+*            CONSTANT REFS      CONTANT REFS    CONTANT REFS*
+* +---------+      IN/OUT            IN/OUT          IN/OUT *
+* | STACK+4 | X2*A1(F)(H)       --    ----      --    ----  *
+* +---------+                                               *
+* | STACK+3 |   T2 (C)(J)       --    ----      --    ----  *
+* +---------+                                               *
+* | STACK+2 |   T1 (B)(D)   new X1   (E)(N)     --    ----  *
+* +---------+                                               *
+* | STACK+1 |old X1(A)(G)       T3   (K)(L) new X2   (M)(P) *
+* +---------+                                               *
+*************************************************************
+* COMPUTE NEW VALUE FOR X1, SAVE IT IN V@RNDX1
+*                             STACK
+*                               SREFS   FAC CONTENTS
+NRND   MOVE 5,V@RNDX1,@FAC        FAC = X1
+       CLR  @FAC5                 FAC = CLR
+       DCLR @FAC6                 FAC = CLR
+       XML  VPUSH          (A)    FAC = X1
+       MOVE 8,G@RNDA1,@ARG        ARG = A1
+       XML  FMUL                  FAC = X1*A1
+       MOVE 8,G@RNDC1,@ARG        ARG = C1
+       XML  FADD               T1=FAC = X1*A1+C1
+       XML  VPUSH          (B)    FAC = T1
+       MOVE 8,G@RNDEM,@ARG        ARG = 1/1E7
+       XML  FMUL                  FAC = T1/1E7
+       CALL GRINT              T2=FAC = INT(T1/1E7)
+       XML  VPUSH          (C)    FAC = T2
+       MOVE 8,G@RNDEP,@ARG        ARG = 1E7
+       XML  FMUL                  FAC = T2*1E7
+       DSUB 8,@VSPTR
+       XML  SSUB           (D) X1=FAC = T1-T2*1E7
+       MOVE 5,@FAC,V@RNDX1        FAC = X1 (new)
+       XML  VPUSH          (E)    FAC = X1
+* COMPUTE NEW VALUE FOR X2, SAVE IT IN V@RNDX2
+       MOVE 5,V@RNDX2,@FAC        FAC = X2
+       CLR  @FAC5                 FAC = CLR
+       DCLR @FAC6                 FAC = CLR
+       MOVE 8,G@RNDA1,@ARG        ARG = A1
+       XML  FMUL                  FAC = X2*A1
+       DADD 8,@VSPTR
+       XML  VPUSH          (F)    FAC = X2*A1
+       DSUB 24,@VSPTR
+       XML  VPOP           (G)    FAC = X1
+       DADD 32,@VSPTR
+       MOVE 8,G@RNDA2,@ARG        ARG = A2
+       XML  FMUL                  FAC = X1*A2
+       XML  SADD           (H)    FAC = X2*A1+X1*A2
+       MOVE 8,G@RNDC2,@ARG        ARG = C2
+       XML  FADD                  FAC = X2*A1+X1*A2
+       XML  SADD           (J) T3=FAC = X2*A1+X1*A2
+       DSUB 16,@VSPTR
+       XML  VPUSH          (K)    FAC = T3
+       MOVE 8,G@RNDEM,@ARG        ARG = 1/1E7
+       XML  FMUL                  FAC = T3/1E7
+       CALL GRINT              T4=FAC = INT(T3/1E7)
+       MOVE 8,G@RNDEP,@ARG        ARG = 1E7
+       XML  FMUL                  FAC = T4*1E7
+       XML  SSUB           (L) X2=FAC = T3-T4*1E7
+       MOVE 5,@FAC,V@RNDX2        FAC = X2 (new)
+* COMPUTE NEW VALUE FOR RND, LEAVE IT IN FAC
+       MOVE 8,G@RNDEM,@ARG        ARG = 1/1E7
+       XML  FMUL                  FAC = X2/1E7
+       XML  VPUSH          (M)    FAC = X2/1E7
+       DADD 8,@VSPTR
+       XML  VPOP           (N)    FAC = X1
+       XML  FMUL                  FAC = X1/1E7
+       XML  FMUL                  FAC = X1/1E14
+       XML  SADD           (P)RND=FAC = (X2/1E7)+(X1/1E14)
+       XML  CONT
+* CONSTANTS FOR THE RANDOM NUMBER ROUTINE
+RNDA2  BYTE >43,>01,>2B,>59,>52,>00,>00,>00 * = 1438982
+RNDA1  BYTE >42,>2A,>08,>15,>00,>00,>00,>00 * = 0420821
+RNDC2  BYTE >43,>02,>0B,>20,>30,>00,>00,>00 * = 2113248
+RNDC1  BYTE >43,>06,>36,>05,>13,>00,>00,>00 * = 6540519
+RNDEP  BYTE >43,>0A,>00,>00,>00,>00,>00,>00 * = 1E7
+RNDEM  BYTE >3C,>0A,>00,>00,>00,>00,>00,>00 * = 1/1E7
+*************************************************************
+*                   RANDOMIZE STATEMENT                     *
+*************************************************************
+NRNDMZ CALL CHKEND            Seed provider?
+       BS   RNDM1             No
+* RANDOMIZE given a see value
+* (99,000,000,000,001 possible starting positions)
+* (Place-value is ignored in the input number)
+       XML  PARSE             Parse the seed
+       BYTE TREMZ           * Up to end of statement
+       CALL CKSTNM
+       DCZ  @FAC              Check FAC for zero
+       BS   GA3B6
+       ST   >46,@FAC          0 < FAC < 1E14
+       XML  VPUSH             Let FAC = X2*1E7+X1
+       MOVE 8,G@RNDEM,@ARG        ARG = 1/1E7
+       XML  FMUL                  FAC = X2+X1/1E7
+       CALL GRINT                 FAC = X2
+       MOVE 5,@FAC,V@RNDX2        FAC = X2
+       MOVE 8,G@RNDEP,@ARG        ARG = 1E7
+       XML  FMUL                  FAC = X2*1E7
+       XML  SSUB                  FAC = X1
+       MOVE 5,@FAC,V@RNDX1        FAC = X1
+       XML  CONT                  FAC = X1
+GA3B6  DST  @FAC,V@RNDX2          FAC = 0
+       DST  @FAC,V@RNDX1          FAC = 0
+       XML  CONT
+* RANDOMIZE given number seed value (use GPL RAND function)
+* (16K possible starting positions)
+RNDM1  DST  >4201,@FAC            FAC = >4201
+       CLR  @FAC4                 FAC4= >00
+       CALL RNDMZ
+       DATA RNDX1
+       CALL RNDMZ             Set up seed
+       DATA RNDX2
+       XML  CONT              Continue on
+RNDMZ  FETCH @FAC8            Fetch address of seed (high byte)
+       FETCH @FAC9            Fetch address of seed (low byte)
+       RAND 99                GPL Randomize
+       ST   @RANDOM,@FAC2     >00<=FAC+2<=FF
+       SRL  2,@FAC2           >00<=FAC+2<=3F
+       RAND 99                GPL Randomize
+       ST   @RANDOM,@FAC3     >00<=FAC+3<=FF
+       SRL  2,@FAC3           >00<=FAC+3<=3F
+       MOVE 5,@FAC,V*FAC8     Put in seed
+       RTN
+CKSTNM CEQ  >65,@FAC2
+       BS   ERRSNM
+       RTN
+FLT1   BYTE >40,>01,>00,>00,>00,>00,>00,>00
+ 
+ 

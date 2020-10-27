@@ -1,0 +1,492 @@
+ 
+ 
+*************************************************************
+* PEEK INSTRUCTION            JDH   9/04/80                 *
+*************************************************************
+*
+* FORMAT:
+*  CALL PEEK open address (comma numeric-variable) * close
+* FUNCTION:
+*  RETURNS THE VALUE AT address IN ERAM INTO numeric-variable.
+*  IF MORE THAN ONE numeric-variable IS SPECIFIED THEN
+*  address IS INCREMENTED AND THE VALUE IN ERAM AT THE NEW
+*  address IS ASSIGNED TO THE NEXT VARIABLE AND SO ON.
+*
+PEEK   CEQ  LPARZ,@CHAT       Chat = "("
+       BR   ERRSYN
+       XML  PGMCHR            Skip "("
+       XML  PARSE             Get value of address
+       BYTE RPARZ
+       CEQ  STRING,@FAC2      Address MUST BE NUMERIC
+       BS   ERRSNM
+       XML  CFI               Convert FAC to integer
+       CEQ  3,@FAC10          Overflow?
+       BS   ERRNO
+       DST  @FAC,@PC          Save peek address
+       CEQ  COMMAZ,@CHAT      CHAT = "," ?
+       BR   ERRSYN
+PEEK2  XML  PGMCHR            Skip ","
+* The following check has been put in SYM, 5/26/81
+* If @CHAT >= >80 then ERRSYN (Don't allow token)
+       XML  SYM               Get symbol name
+       XML  SMB               Get value pointer
+       XML  VPUSH             Save FAC on stack for ASSGNV
+       CZ   @FAC2             Must be numeric
+       BR   ERRSNM
+       CLR  @FAC
+       MOVE 7,@FAC,@FAC1      Clear FAC
+** GET PEEK VALUE FROM ERAM INTO  @FAC1
+       DST  @PC,@VARB           Source
+       DST  FAC1,@VAR0          Destination
+       DST  1,@ARG              Move 1 byte
+       XML  MVUP
+       XML  CIF               Convert FAC to F.P. value
+       XML  ASSGNV            Assign to numeric-variable
+       CEQ  COMMAZ,@CHAT
+       BR   PEEK5
+       DINC @PC               INC pointer to next ERAM address
+       B    PEEK2
+* CHECK FOR ")" AND END OF STATEMENT
+* IF ALL OK, THEN RETURN TO CALLER
+* GETCHR ALSO RETURNS TO HERE
+PEEK5  CEQ  RPARZ,@CHAT                                     <<<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN                                          <<<<<<<<<<<<<<<<<<<<
+       XML  PGMCHR            Skip "("                      <<<<<<<<<<<<<<<<<<<<
+       CALL CHKEND                                          <<<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN                                          <<<<<<<<<<<<<<<<<<<<
+       CALL RPL               RETURN TO CALLER              <<<<<<<<<<<<<<<<<<<<
+*************************************************************
+* LINK INSTRUCTION : SE Sep 1980                            *
+*************************************************************
+*  FORMAT:
+*  CALL LINK("file-name",parameter1,parameter2,...)
+*
+*  LINK ROUTINE READS THE FILE NAME SPECIFIED BY THE USER AND
+*  SAVE THE ADDRESS OF THE NAME FOR LATER USE. THE FILE WILL
+*  BE SEARCHED IN UTILITY CODE LATER ON.
+*
+*  PARAMETERS ARE PASSED EITHER BY REFERENCE OR BY VALUE.
+*  NUMERIC OR STRING VARIABLES AND NUMERIC OR STRING ARRAYS
+*  ARE PASSED BY REFERENCE AND ALL OTHERS INCLUDING A USER
+*  DEFINED FUNCTION ARE PASSED BY VALUE.
+*
+*  PARAMETER INFORMATION IS STORED IN CPU >8300 THROUGH >8310
+*  THAT GIVES A PARAMETER TYPE CODE OF EACH PARAMETER.
+*        CODE 0 ... Numeric expression
+*        CODE 1 ... String experession
+*        CODE 2 ... Numeric variable
+*        CODE 3 ... String variable
+*        CODE 4 ... Numeric array
+*        CODE 5 ... String array
+*
+*  IF A PARAMETER IS PASSED AS A NUMERIC EXPRESSION ITSL
+*  ACTUAL VALUE GETS PUSHED INTO THE VALUE STACK. IN CASE OF
+*  A STRING EXPRESSION , ITS VALUE STACK CONTAINS AN ID(>65),
+*  POINTER TO THE VALUE SPACE AND ITS LENGTH. IF A PARAMETER
+*  GETS PASSED AS A REFERENCE THE PRODUCT OF XML SYM AND XML
+*  SMB IN THE @FAC AREA GETS PUSHED INTO STACK.
+*
+*  AFTER AN ASSEMBLY LANGUAGE SUBPROGRAM IS EXECUTED LINK
+*  ROUTINE WILL POP THE STACK TO GET RID OF PARAMETER
+*  INFORMATION. CONTROL WILL BE TRANSFERED TO THE XB MAIN
+*  PROGRAM AFTERWARDS.
+*
+*************************************************************
+* CALL LINK program                                         *
+*************************************************************
+LINKIT CALL CHKIN             Check if INIT has been called
+       DST  @VSPTR,@OLDS      Save VSPTR for later use
+       CEQ  LPARZ,@CHAT       Check for "("
+       BR   ERRSYN
+       XML  PGMCHR            Advance program pointer
+       XML  PARSE             Get the routine name.
+       BYTE RPARZ           * Read up to ")"
+       CEQ  >65,@FAC2         Should be a string
+       BR   ERRBA
+       DCZ  @FAC6             Don't accept null string
+       BS   ERRBA
+       CH   6,@FAC7           Should be less then 6 char
+       BS   ERRBA
+       XML  VPUSH             Push to make it semi-permanent
+       CLR  @COUNT            Initialize parameter counter
+*************************************************************
+* PARAMETERS get evaluated here                             *
+*************************************************************
+PAR01  CEQ  RPARZ,@CHAT       No arg. So execute it
+       BS   EXE01
+       CEQ  COMMAZ,@CHAT      Should have a comma
+       BR   ERRSYN
+       DST  @PGMPTR,@ERRCOD   Save text pointer
+       XML  PGMCHR            Get the character
+       CHE  >80,@CHAT         Must be an expression
+       BS   VAL01
+* If CHAT = LPARZ then pass by expression
+       CALL CLRFAC            Clear FAC entry for SYM
+       XML  SYM               Read in the symbol table info
+* After XML SYM @FAC area contains a pointer to symbo table
+* Below statement checks if it is a UDF.
+       CLOG >40,V*FAC         Pass by value
+       BR   VAL01
+       CEQ  COMMAZ,@CHAT      Pass by reference
+       BS   REF01
+       CEQ  RPARZ,@CHAT       Pass by reference
+       BS   REF01
+       CEQ  LPARZ,@CHAT       An array
+       BS   ARRAY
+       CHE  >80,@CHAT         Pass by value
+       BS   VAL01
+       BR   ERRSYN
+*************************************************************
+* ARRAY case gets checked here                              *
+*************************************************************
+* Should look like A(,,) etc.
+* Stack entry for an array will look like
+* +--------------+-------+---+-------------+----------------+
+* | Pointer to   |  >00  |   | Pointer to  |                |
+* | symbol table |   or  |   | dim info in |                |
+* | entry        |  >65  |   | real v.s.   |                |
+* +- FAC --------+ FAC2 -+---+- FAC4 ------+- FAC6 ---------+
+*
+ARRAY  XML  PGMCHR            Get the next character
+       CEQ  RPARZ,@CHAT       Pass by reference
+       BS   ARRAY2
+       CEQ  COMMAZ,@CHAT      More array information
+       BS   ARRAY
+       DDEC @PGMPTR           Adjust the pointer
+       ST   LPARZ,@CHAT
+       BR   REF01             Pass by reference
+* In array cases the symbol table address gets stored at FAC
+* area, and the pointer to the value space (dimension info)
+* goes into FAC4
+ARRAY2 XML  PGMCHR            Advance the program pointer
+       CLOG >80,V*FAC         Test string bit
+       BR   GC39D
+       ST   4,*COUNT          Numeric array
+       BR   GC3A1
+GC39D  ST   5,*COUNT          String array case
+* Check if array is being shared. If it is then go back
+* through the linkage to get the actuals symbol table
+* pointer. Put the pointer to the value space (dimension info)
+* into FAC4.
+GC3A1  CLOG >20,V*FAC         Shared array?
+       BS   GC3BE
+       MOVE 2,V@6(@FAC),@FAC4 If so, get pointer
+       CLOG >20,V@-6(@FAC4)   Shared also?
+       BS   GC3BC
+       MOVE 2,V*FAC4,@FAC4    Array is not shared
+GC3BC  BR   GC3C5
+GC3BE  DST  @FAC,@FAC4        Array is not shared
+       DADD 6,@FAC4           Point to value space
+GC3C5  BR   PUSH
+*************************************************************
+* VALUE                                                     *
+*  Passing the parameter by value                           *
+*************************************************************
+VAL01  DST  @ERRCOD,@PGMPTR   Restore program pointer
+       XML  PGMCHR            Skip the first character
+       DST  @BYTES,@TEMP      In case of passing a string
+       XML  PARSE             Parsing up to comma
+       BYTE RPARZ
+       DST  @TEMP,@BYTES      Restore the value in >0C area.
+* After parsing @FAC area contains its actual numeric value
+*  in a numeric case, and the following information in a
+*  string case.
+* +----------------+-----+--+------------+------------------+
+* | >001C  or      | >65 |  | Pointer to | Length of string |
+* | value pointer  |     |  | string     | string           |
+* | address        |     |  |            |                  |
+* +- FAC ----------+-FAC2+--+-FAC4 ------+- FAC6 -----------+
+*
+       CGT  >63,@FAC2         If more then 99 then
+       BR   GC3E0
+       ST   1,*COUNT          Store flag for string expression
+       BR   GC3E3
+GC3E0  CLR  *COUNT            Otherwise it is a numeric expression
+GC3E3  BR   PUSH              Push into stack
+*************************************************************
+* REFERENCE                                                 *
+*   Passing the parameter by reference                      *
+*************************************************************
+* Variables, array element and whole array passing.
+*
+* After SMB @FAC entry shold look like;
+* +--------------+------+-----+-------------+---------------+
+* | Pointer to   | >00  |     | Pointer to  |               |
+* | symbol table |      |     | value space |               |
+* | entry        |      |     |             |               |
+* +-- FAC -------+ FAC2 +-----+- FAC4 ------+- FAC6 --------+
+*  for numeric case, and
+* +--------------+------+-----+-------------+---------------+
+* | Pointer to   | >65  |     | Pointer to  | String        |
+* | value space  |      |     | string      | length        |
+* | entry        |      |     |             |               |
+* +- FAC --------+ FAC2 +-----+- FAC4 ------+- FAC6 --------+
+* for a string case.
+REF01  XML  SMB               Get the location
+       CHE  >B8,@CHAT         Pass array expression
+       BS   VAL01
+       CZ   @FAC2
+       BR   GC3F6
+       ST   2,*COUNT          Must be a numeric variable
+       BR   PUSH
+GC3F6  ST   3,*COUNT          Must be a string variable
+*************************************************************
+* PUSH routine                                              *
+*  Pushes @FAC entry into a value stack.                    *
+*************************************************************
+PUSH   INC  @COUNT
+       CGT  16,@COUNT         Too many parameters
+       BS   ERRBA
+       XML  VPUSH
+       BR   PAR01             Get the next argument.
+*************************************************************
+* EXECUTE routine                                           *
+*  Restore file name info transfer control over to ALC      *
+*************************************************************
+EXE01  ST   >20,@FAC          Store blank in the FAC area.
+       MOVE 5,@FAC,@FAC1
+       MOVE 4,V@12(@OLDS),@STORE   Get the file name info
+       MOVE @STORE+2,V*STORE,@FAC  Move to FAC
+       DCLR @ERRCOD           Clear program pointer for
+*                              error code
+       XML  ALSUP             Go to CPU at >2000 to execute
+       BS   ERROR             Error found
+*                             If no error, start checking stack.
+*************************************************************
+* RETURN to the XB main program.                            *
+*************************************************************
+NOERR  DCH  @OLDS,@VSPTR      Pop the stack
+       BR   GC429
+       XML  VPOP              Pop the stack
+       B    NOERR
+GC429  B    LNKRTN            Check ")" and end of statement
+*************************************************************
+* SUBROUTINES used in this file.                            *
+*************************************************************
+CLRFAC CLR  @FAC
+       MOVE 7,@FAC,@FAC1
+       RTN
+*************************************************************
+* CHARPAT ROUTINE             99/4A - JDH 10/01/80          *
+*************************************************************
+*
+* FORMAT:
+*  CALL CHARPAT open (numeric expression, string expression )
+*
+*  FUNCTION:
+*   RETURNS THE CHARACTER DEFINITION PATTERN FOR CHARACTER
+*   NUMBER <numeric expression> INTO <string expression>
+*
+******************* GETCHR - GETCHR2*************************
+GETCHR CEQ  LPARZ,@CHAT
+       BR   ERRSYN
+GCHR2  XML  PGMCHR
+       XML  PARSE
+       BYTE RPARZ
+       CEQ  STRING,@FAC2      Can't be a string
+       BS   ERRSNM
+       XML  CFI               Convert FAC to integer
+       CEQ  3,@FAC10          Range 32 to 143
+       BS   ERRBA
+       DCGE >0020,@FAC        32                           <<<<<<<<<<<<<<<<<<<<<
+       BR   ERRBA
+       DCGT >008F,@FAC        143                          <<<<<<<<<<<<<<<<<<<<<
+       BS   ERRBA
+       DSLL 3,@FAC            8 bytes / entry so times 8
+       DST  >0300,@TBLPTR     Base of char table less 32*8
+       DADD @FAC,@TBLPTR      Add in arg offset
+       DST  16,@BYTES         16 byte string in string space
+       XML  GETSTR
+       DST  @SREF,@STRPTR     Save pointer to string
+       ST   8,@INDEXC         Loop counter
+GC46D  ST   V*TBLPTR,V*STRPTR
+       SRL  4,V*STRPTR        Get rid of low nibble
+       ADD  >30,V*STRPTR      Add ASCII "0"
+       CGT  >39,V*STRPTR      >39 = ASCII "9"
+       BR   GCHR3
+       ADD  7,V*STRPTR        Value "A" to "F"
+GCHR3  DINC @STRPTR
+       ST   V*TBLPTR,V*STRPTR
+       AND  >0F,V*STRPTR
+       ADD  >30,V*STRPTR      Add ASCII "0"
+       CGT  >39,V*STRPTR
+       BR   GCHR4
+       ADD  7,V*STRPTR        Value "A" to "F"
+GCHR4  DINC @TBLPTR
+       DINC @STRPTR
+       DEC  @INDEXC
+       CZ   @INDEXC
+       BR   GC46D
+* NOW assign the string just created to the string
+*  variable following
+       XML  PGMCHR            Skip comma
+* The following check has been put in SYM, 5/26/81
+* If CHAT >= >80 then ERRSYN (Do not allow token).
+       XML  SYM           Get symbol table info for next arg
+       XML  SMB
+       XML  VPUSH         Save on stack for ASSGNV
+       CEQ  STRING,@FAC2      Must be a stirng variable
+       BR   ERRSNM
+       DST  >001C,@FAC        Temp string so use SREF as address
+       DST  @SREF,@FAC4       Pointer to string
+       DST  16,@FAC6          String length
+       XML  ASSGNV            Assign to string variable
+       CEQ  COMMAZ,@CHAT
+       BS   GCHR2
+       B    PEEK5
+*************************************************************<<<<<<<<<<<<<<<<<<<
+************** ERROR BRANCH TABLE FOR LINK ******************<<<<<<<<<<<<<<<<<<<
+*************************************************************<<<<<<<<<<<<<<<<<<<
+ERROR  CASE  @ERRCOD
+       BR   NOERR
+       BR   NOERR
+       BR   ERRNO             2 Numeric Overflow
+       BR   ERRSYN            3 SYNtax error
+       BR   ERRIBS            4 Illegal after subprogram
+       BR   ERRNQS            5 unmatched quotes
+       BR   ERRNTL            6 Name Too Long
+       BR   ERRSNM            7 String Number Mismatch
+       BR   ERROBE            8 Option Base Error
+       BR   ERRMUV            9 iMproperly Used name
+       BR   ERRIM            10 IMage error
+       BR   ERRMEM           11 MEMory full
+       BR   ERRSO            12 Stack Overflow
+       BR   ERRNWF           13 Next Without For
+       BR   ERRFNN           14 For Next Nesting
+       BR   ERRSNS           15 must be in subprogram
+       BR   ERRRSC           16 Recursive Subprogram Call
+       BR   ERRMS            17 Missing Subend
+       BR   ERRRWG           18 Return Without Gosub
+       BR   ERRST            19 String Truncated
+       BR   ERRBS            20 Bad Subscript
+       BR   ERRSSL           21 Speech String too Long
+       BR   ERRLNF           22 Line Not Found
+       BR   ERRBLN           23 Bad Line Number
+       BR   ERRLTL           24 Line Too Long
+       BR   ERRCC            25 Can't Continue
+       BR   ERRCIP           26 Command Illegal in Program
+       BR   ERROLP           27 Only Legal in a Program
+       BR   ERRBA            28 Bad Argument
+       BR   ERRNPP           29 No Program Present
+       BR   ERRBV            30 Bad Value
+       BR   ERRIAL           31 Incorrect Argument List
+       BR   ERRINP           32 INPut error
+       BR   ERRDAT           33 DATa error
+       BR   ERRFE            34 File Error
+       BR   NOERR
+       BR   ERRIO            36 I/O error
+       BR   ERRSNF           37 Subprogram Not Found
+       BR   NOERR
+       BR   ERRPV            39 Protected Violation
+       BR   ERRIVN           40 unrecognized Character
+       BR   WRNNO            41 Numeric Number Overflow
+       BR   WRNST            42 String Truncated
+       BR   WRNNPP           43 No Program Present
+       BR   WRNINP           44 INPut error
+       BR   WRNIO            45 I/O error
+       BR   WRNLNF           46 Line Not Found
+*************************************************************
+**************** ERROR HANDLING SECTION *********************
+*************************************************************
+ERRN01 CALL CLSNOE            * ENTRY FOR LOAD
+ERRNO  CALL ERRZZ             * Numeric Overflow
+       BYTE 2
+ERRSY1 CALL CLSNOE            * ENTRY FOR LOAD
+ERRSYN CALL ERRZZ             * SYNtax error
+       BYTE 3
+ERRIBS CALL ERRZZ             * Illegal after subprogram
+       BYTE 4
+ERRNQS CALL ERRZZ             * uNmatched QuoteS
+       BYTE 5
+ERRNTL CALL ERRZZ             * Name Too Long
+       BYTE 6
+ERRSNM CALL ERRZZ             * String Number Mismatch
+       BYTE 7
+ERROBE CALL ERRZZ             * Option Base Error
+       BYTE 8
+ERRMUV CALL ERRZZ             * Improperly used name
+       BYTE 9
+ERRIM  CALL ERRZZ             * Image Error
+       BYTE 10
+ERRMF1 CALL CLSNOE            * ENTRY FOR LOAD
+ERRMEM CALL ERRZZ             * MEMory full
+       BYTE 11
+ERRSO  CALL ERRZZ             * Stack Overflow
+       BYTE 12
+ERRNWF CALL ERRZZ             * Next Without For
+       BYTE 13
+ERRFNN CALL ERRZZ             * For-Next Nesting
+       BYTE 14
+ERRSNS CALL ERRZZ             * must be in subprogram
+       BYTE 15
+ERRRSC CALL ERRZZ             * Recursive Subprogram Call
+       BYTE 16
+ERRMS  CALL ERRZZ             * Missing Subend
+       BYTE 17
+ERRRWG CALL ERRZZ             * Return Without Gosub
+       BYTE 18
+ERRST  CALL ERRZZ             * String Truncated
+       BYTE 19
+ERRBS  CALL ERRZZ             * Bad Subscript
+       BYTE 20
+ERRSSL CALL ERRZZ             * Speech String too Long
+       BYTE 21
+ERRLNF CALL ERRZZ             * Line Not Found
+       BYTE 22
+ERRBLN CALL ERRZZ             * Bad Line Number
+       BYTE 23
+ERRLTL CALL ERRZZ             * Line Too Long
+       BYTE 24
+ERRCC  CALL ERRZZ             * Can't Continue
+       BYTE 25
+ERRCIP CALL ERRZZ             * Command Illegal in Program
+       BYTE 26
+ERROLP CALL ERRZZ             * Only Legal in a Program
+       BYTE 27
+ERRBA  CALL ERRZZ             * Bad Argument
+       BYTE 28
+ERRNPP CALL ERRZZ             * No Program Present
+       BYTE 29
+ERRBV  CALL ERRZZ             * Bad Value
+       BYTE 30
+ERRIAL CALL ERRZZ             * Incorrect Argument List
+       BYTE 31
+ERRINP CALL ERRZZ             * INPut error
+       BYTE 41
+ERRDE1 CALL CLSNOE            * ENTRY FOR LOAD
+ERRDAT CALL ERRZZ             * DATa error / Checksum error
+       BYTE 33
+ERRFE  CALL ERRZZ             * File Error
+       BYTE 34
+ERRIO  CALL ERRZZ             * I/O error
+       BYTE 36
+ERRSNF CALL ERRZZ             * Subprogram Not Found
+       BYTE 37
+ERRPV  CALL ERRZZ             * Protection Violation
+       BYTE 39
+ERRUC1 CALL CLSNOE            * ENTRY FOR LOAD
+ERRIVN CALL ERRZZ             * Unrecognized character / illegal tag
+       BYTE 40
+WRNNO  CALL WARNZZ            * Numeric Overflow
+       BYTE 2
+       BR   NOERR
+WRNST  CALL WARNZZ            * String Truncated
+       BYTE 19
+       BR   NOERR
+WRNNPP CALL WARNZZ            * No Program Present
+       BYTE 29
+       BR   NOERR
+WRNINP CALL WARNZZ            * INPut Error
+       BYTE 32
+       BR   NOERR
+WRNIO  CALL WARNZZ            * I/O error
+       BYTE 35
+       BR   NOERR
+WRNLNF CALL WARNZZ            * Line Not Found
+       BYTE 38
+       BR   NOERR
+*************************************************************
+******** SUPPORT ROUTINE CODE FOLLOWS FOR INIT **************
+*************************************************************
+ 
+ 

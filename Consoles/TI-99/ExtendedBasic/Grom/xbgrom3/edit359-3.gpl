@@ -1,0 +1,346 @@
+ 
+       AORG >0A70
+G6A70  BR   PRESCN
+       BR   $                 Spare
+       BR   LLIST
+G6A76  BR   READLN
+       BR   CHKEND            check End Of Statement
+       BR   $                 Was SEETWO - now spare
+G6A7C  BR   DISO
+       BR   ENTER
+       BR   ENT09
+G6A82  BR   WARNZZ
+G6A84  BR   ERRZZ
+       BR   READL1
+       BR   READ00
+       BR   READL3
+       BR   $                 Spare
+*************************************************************
+* READLN - Read one logical line (up to four physical lines)*
+* from the keyboard. Interpret things like BACKSPACE,       *
+* INSERT, DELETE AND FORWARD. The total number of characters*
+* can be limited by changing the start value for ARG2       *
+* (upper limit), and entering at READL1 and VARW has to     *
+* contain the start address of the feild, and VARA the      *
+* current highest wirte address. Entering at READ00 allows  *
+* for specification of the intial cursor-position. In this  *
+* case ARG5 has to be set to the cursor-position. Please see*
+* to it that VARA, VARW, ARG2, and ARG4 have consistent     *
+* values, i.e.                                              *
+*           VARW <= ARG5 <= VARA <= ARG2                    *
+* ARG4 indicates if the line has been changed. If so, it    *
+* contains a 0. If you enter READLN through READ00, you have*
+* to initialize ARG4 to a nonzero value, should you want to *
+* use this feature.                                         *
+*************************************************************
+*-----------------------------------------------------------*
+* Fix "You cannot add characters to a line whose number is a*
+* multiple of 256, if that line was reached by typing either*
+* an up arrow or a down arrow form a previous line" bug,    *
+* replace following 3 lines:                                *
+* READLN ST   >FF,@ARG7         Indicate non-check mode     *
+*        DST  >037D,@ARG2       Set default upper limit     *
+*        DST  @VARW,@VARA       Default nothing entered yet *
+*      with                                                 *
+READLN DST  >037D,@ARG2       Set default upper limit       *  <<<<<<<<<<<<<<<<<
+       DST  @VARW,@VARA       Default to nothing entered yet*  <<<<<<<<<<<<<<<<<
+READL3 ST   >FF,@ARG7         Indicate non-check mode       *  <<<<<<<<<<<<<<<<<
+*-----------------------------------------------------------*
+* Please make sure that VARA points at a space location, or *
+* at the end-of-field.                                      *
+*-------------- ADD FOLLOWING LINES 6/12/81 ----------------*
+READL1 CLR  V@NOTONE          Reset flag for ACCEPT SIZE tone
+       ST   1,@ARG4           This means "no change" in line
+READL2 DST  @VARW,@ARG5       Position cursor at start of field
+*-----------------------------------------------------------*
+* Auto-repeat function is added for 99/4A, in PSCANS line   *
+* READ00 to READZ2+1 are changed to following code          *
+*-----------------------------------------------------------*
+READ00 CLR  @VAR0             Counter for auto-repeat fuction
+*
+* To get out of insert mode, we usually return here.
+*
+READ01 CLR  @ARG8             Indicate normal operation mode
+       ST   CURSOR,@VARV      Use VARV for CURSOR/CHARACTER
+* Idicate one character and alternate current character
+* position between normal and cursor.
+READZ1 EX   @VARV,V*ARG5      By alternating between the
+*                              normal character and the
+*                              cursor, we make the cursor
+       CLR  @TIMER             blink
+G6AAE  SCAN                    Scan for a character               <<<<<<<<<<<<<<
+       RAND 99                Force randomize to be random        <<<<<<<<<<<<<<
+       BS   READZ2            Found one!!!!
+       INC  @VAR0             Increment the auto-repeat counter
+       CEQ  >FF,@RKEY         It is an old key                    <<<<<<<<<<<<<<
+       BS   G6AC5
+       CHE  >FE,@VAR0         Hold old key for a while            <<<<<<<<<<<<<<
+       BR   G6AC5
+       SUB  30,@VAR0          Control repeat rate                 <<<<<<<<<<<<<<
+       B    READZ5
+G6AC5  CH   >0E,@TIMER        Time next character switch          <<<<<<<<<<<<<<
+       BR   G6AAE
+       BR   READZ1            Restart character blink cycle       <<<<<<<<<<<<<<
+*
+* Correct if we ended up with a displayed cursor
+*
+READZ2 CLR  @VAR0
+READZ5 CEQ  CURSOR,@VARV      Will have to change once more
+       BS   G6AD7
+       EX   @VARV,V*ARG5      Exchange for current cursor
+G6AD7  CHE  >20,@RKEY         Control character!!!
+       BS   G6BD0
+*
+* BREAK character handling comes first
+*
+       CEQ  BREAK,@RKEY       Saw break character
+       BR   G6AF4
+       AND  >FE,@FLAG         Reset AUTONUM mode
+       CZ   @PRGFLG           If in run mode
+       BS   BTOP15
+*-----------------------------------------------------------*
+* FIX FCTN4 breaks a program during an execution of INPUT,  *
+* ACCEPT, or LINPUT statement regardless of ON BREAK NEXT   *
+* flag bug 5/19/81                                          *
+* Replace following 2 lines:                                *
+*        DST  @SMTSRT,V@SPGMPT Save place for continue      *
+*        B    EXEC6D           Interrupt execution          *
+* with:                                                     *
+       CLOG >40,@FLAG         If ON-BREAK-NEXT has not been *
+       BR    G6AF4             set, i.e. break is illegal   *
+       DST  @SMTSRT,V@SPGMPT  Save place for continue       *
+       B    EXEC6D            Interrupt execution           *
+*-----------------------------------------------------------*
+*
+* Edit buffer recall
+*
+G6AF4  CEQ  RECALL,@RKEY     If edit recall                     <<<<<<<<<<<<<<<<
+       BR   G6B2A
+       CZ   @PRGFLG           Ignore if exec mode
+       BR   READZ1
+       AND  >FE,@FLAG         Reset AUTONUM
+       DST  NLNADD+32,@VARW   Initialize to 32 below screen     <<<<<<<<<<<<<<<<
+G6B04  XML  SCROLL            Scroll the screen
+       DSUB 32,@VARW          Line start is 32 lower now        <<<<<<<<<<<<<<<<
+       DCEQ V@BUFSRT,@VARW    Until reach recall start          <<<<<<<<<<<<<<<<
+       BR   G6B04
+       DST  V@BUFEND,@VARA    Set old end of line               <<<<<<<<<<<<<<<<
+       DST  @VARA,@FAC        Calculate length of old line      <<<<<<<<<<<<<<<<
+       DSUB @VARW,@FAC        Subtract start from end           <<<<<<<<<<<<<<<<
+       BS   READZ3            If no characters to recall
+       MOVE @FAC,V@RECBUF,V*VARW Recall line                    <<<<<<<<<<<<<<<<
+READZ3 ST   >FF,@ARG7         Non-check mode
+       DST  @VARW,@ARG5       Cursor at beginning of line
+       BR   READ00            Allow edit of line
+*
+* BACK-ARROW - Space back one position
+*
+G6B2A  CEQ  BACK,@RKEY        Backup to previous position       <<<<<<<<<<<<<<<<
+       BS   RBACK
+*
+* RIGHT-ARROW - Forward space
+*
+       CEQ  FORW,@RKEY        Space one position
+       BS   RFORW
+*
+* INSERT - Start INSERT mode here
+*
+       CEQ  INSRT,@RKEY       Set INSERT flag                    <<<<<<<<<<<<<<<
+       BR   G6B3C
+       ST   1,@ARG8           Select INSERT mode
+*
+* DELETE - Delete the current character
+*
+G6B3C  CEQ  DLETE,@RKEY       DELETE all right                   <<<<<<<<<<<<<<<
+       BR   G6B94
+*------------ ADD THE FOLLOWING LINE 6/12/81 ---------------*
+       CLR  V@NOTONE          Reset flag for SIZE in ACCEPT
+       CLR  @ARG4             Indicate definite change in line
+       DCEQ @ARG5,@VARA       Not an empty line
+       BS   G6B8E
+       CEQ  EDGECH,V*VARA     If pointing at end
+       BR   G6B53
+       DDEC @VARA             Backup up onto line
+G6B53  DST  @VARA,@ARG        Move everything from right
+       DSUB @ARG5,@ARG         of the cursor to the left
+       MOVE @ARG,V@1(@ARG5),V*ARG5
+       DST  @ARG5,@ARG        Start at the beginning
+       AND  >FC,@ARG1
+       OR   >1D,@ARG1         Move over to the end of the line
+G6B69  DCHE @VARA,@ARG        Update all errors
+       BS   G6B7A
+       EX   V*ARG,V@4(@ARG)   Restore edge characters
+       DADD 32,@ARG           Next victim please
+       BR   G6B69
+G6B7A  DDEC @VARA             Pre-update end of string
+       CEQ  EDGECH,V*VARA     Hit edge character
+       BR   G6B86
+       DSUB 4,@VARA           Skip over edge characters
+* For auto-repeat function 5/19/81
+G6B86  CEQ  >20+OFFSET,V*VARA                                  <<<<<<<<<<<<<<<<<
+       BS   READ01
+       DINC @VARA             Locked at feild position
+G6B8E  ST   >20+OFFSET,V*VARA Clear last position
+       BR   READ01
+*
+* CLEAR - Clear the entire input line
+*
+G6B94  CEQ  CLRLN,@RKEY       Found CLEAR command
+       BR   G6BB3
+*-------------- ADD THE FOLLOWING LINE 6/12/81 -------------*
+       CLR  V@NOTONE          Reset flag for SIZE in ACCEPT
+*                              Current maximum to minimum
+G6B9C  CEQ  >7F,V*VARA         Don't clear edges
+       BS   G6BA6
+       ST   >20+OFFSET,V*VARA Blank line
+G6BA6  DDEC @VARA             Pre-update end-of-line
+       DCHE @VARW,@VARA       Up to and including first position
+       BS   G6B9C
+       DINC @VARA             Undo last subtraction
+       CLR  @ARG4             Indicate change
+       BR   READL2            And restart everything
+* General exit point. Unidentified control codes don't have
+* effect!!!!!
+G6BB3  CEQ  CHRTN,@RKEY       Only react on CR/UP/DOWN           <<<<<<<<<<<<<<<
+       BS   G6BC2
+       CEQ  UPMV,@RKEY
+       BS   G6BC2
+       CEQ  DOWN,@RKEY
+       BR   READZ1
+G6BC2  DCEQ @ARG2,@VARA       Check for block on last position
+       BR   G6BCF
+       CEQ  >20+OFFSET,V*VARA Blocked. . . . . .
+       BS   G6BCF
+       DINC @VARA             Point beyond last character in
+*                              line
+G6BCF  RTN                    ENTER the current line
+G6BD0  CZ   @ARG7             Check value of RKEY against given
+       BR   VALIZ9
+       DST  V@VALIDP,@ARG     Pick up the standard stuff
+       ST   V*ARG,@ARG        V@VALIDP : Pointer to the
+*                              standard stuff
+       CLOG >04,@ARG          Specified UPPER CASE
+       BS   G6BF0
+       CH   >5A,@RKEY         Z too high for anything
+       BS   VALIZ2
+       CHE  >41,@RKEY         A already in range
+       BS   VALIZ9
+       CEQ  >20,@RKEY         SPACE allow spaces in UALPHA
+       BS   VALIZ9
+G6BF0  CLOG >01,@ARG          Specified NUMERIC
+       BS   G6C0B
+       CEQ  >45,@RKEY         E ?
+       BS   VALIZ9
+       CEQ  >2E,@RKEY         . ?
+       BS   VALIZ9
+       CEQ  >2B,@RKEY         + ?
+       BS   VALIZ9
+       CEQ  >2D,@RKEY         - ?
+       BS   VALIZ9
+       BR   VALIZ1            now try DIGIT range
+G6C0B  CLOG >02,@ARG          Digit range selected
+       BS   VALIZ2
+VALIZ1 CHE  >30,@RKEY         0 ?
+       BR   VALIZ2            No good
+       CHE  >3A,@RKEY         9 ?
+       BR   VALIZ9            Numeric allright
+VALIZ2 DST  V@VALIDP,@ARG     Copy start address of string
+       ST   V@VALIDL+1,@FAC6   and string length
+       BR   VALIZ4             now test given characters
+VALIZ3 CEQ  V*ARG,@RKEY       valid!!!!
+       BS   VALIZ9
+VALIZ4 DINC @ARG              Update actual address
+       DEC  @FAC6              and count # of characters
+       BR   VALIZ3
+G6C30  CZ   @PRTNFN           Wait for completion of previous
+       BR   G6C30              tone, and then
+       CALL TONE2               ---BEEP---
+       BR   READZ1            Continue in whatever mode we're
+*                              in now
+VALIZ9 CZ   @ARG8             INSERT mode?
+       BS   G6C91
+* INSERT - is COMPLICATED!!!!! Because of those edge characters
+* Shift up all things. . . . continue as a standard insert
+* VARA <= ARG2
+       DCEQ @ARG2,@VARA       If end of screen
+       BS   READZ4
+*-----------------------------------------------------------*
+* Fix Editing a line that has been retrived by the REDO key *
+* and may garble the last few characters bug, 5/28/81       *
+       CEQ  EDGECH,V*VARA     If at end of line             *
+       BR   READZ4                                          *
+       DCEQ >02FE,@VARA       If also at end of screen      *
+       BR   G6C64                                           *
+       XML  SCROLL            Scroll the screen             *
+       DSUB 32,@VARW          Back up line start address    *
+       DSUB 28,@VARA          Back up to current start line *
+       DSUB 32,@ARG2          Absolute high limit backs up  *
+       DSUB 32,@ARG5          Current cursor position too   *
+       B    READZ4
+G6C64  DADD 4,@VARA           Skip to next line             *
+*-----------------------------------------------------------*
+READZ4 DST  @VARA,@ARG        Use ARG as temp for insert
+G6C6B  DCH  @ARG5,@ARG        Move everything up to current
+*                              line
+       BR   G6C8A
+       DDEC @ARG              Copy lower location to higher
+       ST   V*ARG,V@1(@ARG)   Going from high to low
+       CEQ  EDGECH,V*ARG      Bumped into wall again
+       BR   G6C88
+       DSUB 4,@ARG            Skip the wall
+       ST   V*ARG,V@5(@ARG)   And move character over
+G6C88  BR   G6C6B
+G6C8A  DCHE @ARG2,@VARA       Only update VARA if upper
+       BS   G6C91
+       DINC @VARA              hasn't been reached yet
+G6C91  ADD  OFFSET,@RKEY      Create displayable character
+       ST   @RKEY,V*ARG5      Display at current character
+*                              position
+       CLR  @ARG4             Indicate change in line
+READ05 DCEQ @ARG2,@ARG5       Hit right margin
+       BR   G6CAD
+       CZ   V@NOTONE          If not the first time
+       BS   G6CA7
+       CALL TONE1             ---BEEP---
+G6CA7  ST   >FF,V@NOTONE      Set the flag
+       BR   READZ1            Stay in current mode !!!!
+G6CAD  DINC @ARG5             Update current address
+       CEQ  EDGECH,V*ARG5     Correct for next line
+       BR   G6CB9
+       DADD 4,@ARG5           By skipping border
+G6CB9  DCH  @VARA,@ARG5       Check for last new high limit
+       BR   G6CC1
+       DST  @ARG5,@VARA       Update new high limit
+G6CC1  DCHE >02FE,@VARA       Still some space to go
+       BR   READZ1
+       XML  SCROLL            Scroll the screen!!!
+       DSUB 28,@VARA          Back to current start of line
+       CZ   @ARG8             If not insert mode then
+       BS   G6CD5
+       DSUB 4,@VARA           Off by 4 more-correct it
+G6CD5  DSUB 32,@VARW          Backup line start address
+       DSUB 32,@ARG2          Absolute high limit backs up too
+       DSUB 32,@ARG5          Current cursor position too
+       BR   READZ1            Start with something else
+*
+* Something special for forward cursor move
+*
+RFORW  CLR  @ARG8             Leave INSERT mode - don't copy
+       BR   READ05             but use rest of input logic
+*-----------------------------------------------------------*
+* RBACK section has been moved from READL2+1 for adding     *
+* auto-repeat function in 99/4A. Also                       *
+*       BR   READ01   is added at the end, 5/18/81          *
+*-----------------------------------------------------------*
+* This will cause the next test to fail initialy, since     *
+* VARW clearly equals ARG5 first time through               *
+*------------- ADD THE FOLLOWING LINE 6/12/81 --------------*
+RBACK  CLR  V@NOTONE          Reset flag for SIZE in ACCEPT
+       DCH  @VARW,@ARG5       The standard backup entry
+       BR   G6CFB
+       DDEC @ARG5             So we backup the current position
+       CEQ  EDGECH,V*ARG5     Skip border line
+       BR   G6CFB
+       DSUB 4,@ARG5           Backup to previous line
+G6CFB  BR   READ01            Go back for next character
+ 

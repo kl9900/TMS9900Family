@@ -1,0 +1,417 @@
+********************************************************************************
+       TITL 'EQUATES EDIT-359'
+*************************************************************
+CPUBAS EQU  >A040             CRU base
+*************************************************************
+*           GROM ADDRESSES                                  *
+MZMON  EQU  >0010             Module MONITER branch table address
+MZEDIT EQU  >6010             Module EDIT branch table address
+MZMSG  EQU  >6038             Start of message area
+MZPSCN EQU  >6A70             Module PSCAN branch table address
+MZFLMG EQU  >8000             Module FLMGR branch table address
+MZEXEC EQU  >A000             Module EXEC branch table address
+*************************************************************
+OUTREC EQU  >801A
+G8024  EQU  >8024             CHKEND in upper GROM is different
+KEYTAB EQU  >CB00
+ERRTAB EQU  >CD77
+TRACBK EQU  >CE1F
+RETNOS EQU  >CF68
+EDTZZ0 EQU  >D000             Edit a line or display it table
+EDTZ00 EQU  >D00D             Edit a line or display it
+SAVLIN EQU  >D0AF             Save input line address
+*************************************************************
+*    EQUATES FOR ROUTINES FROM OTHER SECTIONS
+ 
+CLSALL EQU  MZFLMG+>12        CLose ALL open files
+SAVE   EQU  MZFLMG+>14        SAVE a program
+OLD    EQU  MZFLMG+>16        OLD  (load a program)
+LIST   EQU  MZFLMG+>18        LIST a program
+OLD1   EQU  MZFLMG+>26        A subprogram for LOAD
+MERGE  EQU  MZFLMG+>28        MERGE a program
+GRMLST EQU  MZFLMG+>2A        List program line from ERAM
+GRSUB2 EQU  MZFLMG+>2C        Read from ERAM(GREAD1) or VDP
+GRSUB3 EQU  MZFLMG+>2E        Read from ERAM(use GREAD1) or
+*                              VDP, reset prossible bkpt too
+ 
+ATNZZ  EQU  MZMON+>22         Arctangent routine
+ERRZ   EQU  MZPSCN+>14        ERRor routine
+EXEC   EQU  MZEXEC+>04
+ASC    EQU  MZEXEC+>0A
+EXEC1  EQU  MZEXEC+>0C        EXECute a program statememt
+EXEC6D EQU  MZEXEC+>0E
+DELINK EQU  MZEXEC+>10
+SQUISH EQU  MZEXEC+>14
+INTRND EQU  MZEXEC+>18        Initilize random number
+LINK1  EQU  MZEXEC+>26        LINK to subprogram
+*************************************************************
+*    Equates for routine in MONITOR
+CALDSR EQU  >10               CALL DEVICE SERVICE ROUTINE
+TONE1  EQU  >34               ACCEPT TONE
+TONE2  EQU  >36               BAD TONE
+CHAR2Z EQU  >18               CHARACTER TABLE ADDRESS
+CHAR3Z EQU  >4A               CHARACTER TABLE ADDRESS
+*************************************************************
+*    Equates for XMLs
+SYNCHK EQU  >00               SYNCHK XML selector
+SEETWO EQU  >03               SEETWO XML selector
+COMPCT EQU  >70               PREFORM A GARBAGE COLLECTION
+MEMCHK EQU  >72               MEMORY check routine: VDP
+VPUSH  EQU  >77               Push on value stack
+VPOP   EQU  >78               Pop off value stack
+PGMCHR EQU  >79               GET PROGRAM CHARACTER
+SCHSYM EQU  >7D               Search symbol table
+SPEED  EQU  >7E               SPEED UP XML
+CRUNCH EQU  >7F               Crunch an input line
+CONTIN EQU  >81               Continue after a break
+SCROLL EQU  >83               SCROLL THE SCREEN
+IO     EQU  >84               IO utility (KW table search)
+GREAD  EQU  >85               READ DATA FROM ERAM
+GWRITE EQU  >86               WRITE DATA TO ERAM
+DELREP EQU  >87               REMOVE CONTENT FROM VDP/ERAM
+MVDN   EQU  >88               MOVE DATA IN VDP/ERAM
+MVUP EQU    >89               MOVE DATA IN VDP/ERAM
+VGWITE EQU  >8A               MOVE DATA FROM VDP TO ERAM
+GVWITE EQU  >8B               WRITE DATA FROM GRAM TO VRAM
+GDTECT EQU  >8E               ERAM DETECT&ROM PAGE 1 ENABLE
+SCNSMT EQU  >8F               SCAN STATEMENT FOR PRESCAN
+*************************************************************
+*    GPL Status Block
+STACK  EQU  >8372             STACK FOR DATA
+KEYBD  EQU  >8374             KEYBOARD SELCTION
+RKEY   EQU  >8375             KEY CODE
+RANDOM EQU  >8378             RANDOM NUMBER GENERATOR
+TIMER  EQU  >8379             TIMING REGISTER
+MOTION EQU  >837A             NUMBER OF MOVING SPRITES
+VDPSTS EQU  >837B             VDP STATUS REGISTER
+ERCODE EQU  >837C             STATUS REGISTER
+*************************************************************
+*    Temporary workspaces in EDIT
+VAR0   EQU  >8300            TEMPORARY
+VARV   EQU  >8301            TEMPORARY
+ACCUM  EQU  >8302            # OF BYTES ACCUMULATOR (4 BYTES)
+STPT   EQU  >8302            TWO BYTES
+VARY   EQU  >8304
+VARY2  EQU  >8306
+PABPTR EQU  >8304
+DFLTLM EQU  >8306            Default array limit (10)
+CCPPTR EQU  >8306            OFFSET WITHIN RECORED (1)
+RECLEN EQU  >8307            LENGTH OF CURRENT RECORD (1)
+CCPADR EQU  >8308            RAM address of current refs
+VARC   EQU  >8308
+CCPADD EQU  >8308            RAM address of current color
+CALIST EQU  >830A            Call list for resolving refs
+RAMPTR EQU  >830A            Pointer for crunching
+BYTES  EQU  >830C            BYTE COUNTER
+NMPTR  EQU  >830C            Pointer save for pscan
+CHSAV  EQU  >830E
+CURINC EQU  >830E            Increment for auto-num mode
+TOPSTK EQU  >8310            Top of data stack pointer
+LINUM  EQU  >8312            Used to determine end of scan
+NMLEN  EQU  >8314            Current line for auto-num
+CURLIN EQU  >8314            Current line for auto-num
+VAR9   EQU  >8316
+XFLAG  EQU  >8316            SCAN FLAG-BITS USED AS BELOW
+DSRFLG EQU  >8317            INTERNAL =60, EXTERNAL =0 (1)
+FORNET EQU  >8317            Nesting level of for/next
+ 
+AAA1   EQU  >8302
+BBB1   EQU  >830C
+CCC1   EQU  >8308
+*************************************************************
+*    Permanent workspace variables
+STRSP  EQU  >8318            String space begining
+STREND EQU  >831A            String space ending
+SREF   EQU  >831C            Temporary string pointer
+SMTSRT EQU  >831E            Start of current statement
+VARW   EQU  >8320            Screen address
+ERRCOD EQU  >8322            Return error code from ALC
+STVSPT EQU  >8324            Value-stack base
+VARA   EQU  >832A            Ending display location
+PGMPTR EQU  >832C            Program text pointer
+EXTRAM EQU  >832E            Line number table pointer
+STLN   EQU  >8330            Start of line number table
+ENLN   EQU  >8332            End of line number table
+DATA   EQU  >8334            Data pointer for READ
+LNBUF  EQU  >8336            Line table pointer for READ
+INTRIN EQU  >8338            Add of intrinsic poly constants
+SUBTAB EQU  >833A            Subprogram symbol table
+IOSTRT EQU  >833C            PAB list/Start of I/O chain
+SYMTAB EQU  >833E            Symbol table pointer
+FREPTR EQU  >8340            Free space pointer
+CHAT   EQU  >8342            Current charater/token
+BASE   EQU  >8343            OPTION BASE value
+PRGFLG EQU  >8344            Program/imperative flag
+FLAG   EQU  >8345            General 8-bit flag
+BUFLEV EQU  >8346            Crunch-buffer destruction level
+LSUBP  EQU  >8348            Last subprogram block on stack
+* FAC  EQU  >834A            Floating-point ACcurmulator
+FAC1   EQU  FAC+1
+FAC2   EQU  FAC+2
+FAC3   EQU  FAC+3
+FAC4   EQU  FAC+4
+FAC5   EQU  FAC+5
+FAC6   EQU  FAC+6
+FAC7   EQU  FAC+7
+FAC8   EQU  FAC+8
+FAC10  EQU  FAC+10
+FAC12  EQU  FAC+12
+FAC13  EQU  FAC+13
+FAC14  EQU  FAC+14
+FAC15  EQU  FAC+15
+FAC16  EQU  FAC+16
+FAC17  EQU  FAC+17
+AAA    EQU  FAC+2
+CCC    EQU  FAC+4
+BBB    EQU  FAC+6
+DDD    EQU  FAC+2
+FFF    EQU  FAC+4
+EEE    EQU  FAC+6
+DDD1   EQU  FAC+10
+FFF1   EQU  FAC+12
+EEE1   EQU  FAC+14
+* ARG  EQU  >835C             Floating-point ARGument
+ARG1   EQU  ARG+1
+ARG2   EQU  ARG+2
+ARG3   EQU  ARG+3
+ARG4   EQU  ARG+4
+ARG5   EQU  ARG+5
+ARG6   EQU  ARG+6
+ARG7   EQU  ARG+7
+ARG8   EQU  ARG+8
+ARG11  EQU  ARG+11
+ARG15  EQU  ARG+15
+ARG16  EQU  ARG+16
+* VSPTR  EQU  >836E          Value stack pointer
+EXPZ   EQU  >8376            Exponent in floating-point
+RAMTOP EQU  >8384            Highest address in ERAM
+RAMFRE EQU  >8386            Free pointer in the ERAM
+RSTK   EQU  >8388            Subroutine stack base
+RAMFLG EQU  >8389            ERAM flag
+STKMIN EQU  >83AF            Base of data stack
+STKMAX EQU  >83BD            Top of data stack
+PRTNFN EQU  >83CE
+*************************************************************
+*    VDP addresses
+NLNADD EQU  >02E2             New LiNe ADDress
+ENDSCR EQU  >02FE             END of SCReen address
+LODFLG EQU  >0371             Auto-boot needed flag
+START  EQU  >0372             Line to start execution at
+SYMBOL EQU  >0376             Saved symbol table pointer
+SPGMPT EQU  >0382             Saved PGMPTR for continue
+SBUFLV EQU  >0384             Saved BUFLEV for contiue
+SEXTRM EQU  >0386             Saved EXTRAM for continue
+* SAVEVP EQU  >0388           Saved VSPRT for continue
+* ERRLN  EQU  >038A           On-error line pointer
+BUFSRT EQU  >038C             Edit recall start addr (VARW)
+BUFEND EQU  >038E             Edit recall end addr (VARA)
+TABSAV EQU  >0392             Saved main symbol table ponter
+SLSUBP EQU  >0396             Saved LSUBP for continue
+SFLAG  EQU  >0398             Saved on-warning/break bits
+SSTEMP EQU  >039A             To save subprogram program table
+SSTMP2 EQU  >039C             Same as above. Used in SUBPROGRAMS
+MRGPAB EQU  >039E             MERGEd temporary for pab ptr
+*-----------------------------------------------------------*
+* Added 6/8/81 for NOPSCAN feature                          *
+PSCFG  EQU  >03B7                                           *
+*-----------------------------------------------------------*
+*    Flag 0:  99/4  console, 5/29/81                        *
+*         1:  99/4A console                                 *
+CONFLG EQU  >03BB                                           *
+*-----------------------------------------------------------*
+* Temporary
+NOTONE EQU  >0374             NO-TONE for SIZE in ACCEPT used
+*                              in FLMGRS (4 bytes used)
+SAVEVP EQU  >0388
+ERRLN  EQU  >038A
+ACCVRW EQU  >03AC             Temoporary used in ERRZZ, also
+*                              used in FLMGRS
+VALIDP EQU  >03B0             Use as two values passing from
+VALIDL EQU  >03B2             VALIDATE code to READL1
+OLDTOP EQU  >03BC             Temporary used in ERRZZ, also
+ 
+CRNBUF EQU  >0820             CRuNch BUFfer address
+CRNEND EQU  >08BE             CRuNch buffer END
+RECBUF EQU  >08C0             Edit RECall BUFfer
+VRAMVS EQU  >0958             Default base of value stack
+CNSTMP EQU  >0390             Use as temporary stored place
+*************************************************************
+*    IMMEDITATE VALUES
+NUMBR  EQU  >00               NUMERIC validate
+LISTZ  EQU  >02
+OLDZ   EQU  >05
+RESEQZ EQU  >06
+SAVEZ  EQU  >07
+MERGEZ EQU  >08
+DWNARR EQU  >0A
+UPARR  EQU  >0B
+CHRTN  EQU  >0D
+OFFSET EQU  >60
+*  Bits in XFLAG
+REMODE EQU  0                 REM only mode
+OPTFLG EQU  1                 Option base declared flag
+FNCFLG EQU  2                 Scanning UDF
+SUBFLG EQU  3                 Scanning a subprogram
+STRFLG EQU  4                 Scanning a string variable
+SAFLG  EQU  5                 Scanning subprogram arguments
+IFFLAG EQU  6                 Scanning an if-statement
+ENTXFL EQU  7                 ENTERX flag
+*
+*               BITS IN FLAG
+* NUMBIT EQU  >00             Autonum bit (Can't use MACRO)
+WRNPRT EQU  1                 Warning print bit
+WRNSTP EQU  2                 Warning stop bit
+*************************************************************
+* Editting command equates
+BREAK  EQU  >02               Break key
+DLETE  EQU  >03               Delete key
+INSRT  EQU  >04               Insert key
+RECALL EQU  >06               Edit-buffer recall
+CLRLN  EQU  >07               Clear-line key
+BACK   EQU  >08               Back-space key
+FORW   EQU  >09               Forward-space key
+DOWN   EQU  >0A               Down-arrow key
+UPMV   EQU  >0B               Up-arrow key
+*************************************************************
+* IMMEDITE VALUES
+QUOTE  EQU  >22               "
+DOLLAR EQU  >24               $
+CURSOR EQU  >1E+OFFSET        CURSOR
+EDGECH EQU  >1F+OFFSET        EDGE character
+COMMA  EQU  >2C               ,
+*************************************************************
+* PAB offset
+CZCLOS EQU  1                 CLOSE CODE
+COD    EQU  4                 I/O code
+NLEN   EQU  13                Length of file descriptor
+*************************************************************
+*    BASIC TOKEN TABLE
+*      EQU  >80               spare token
+ELSEZ  EQU  >81               ELSE
+SSEPZ  EQU  >82               ::
+TREMZ  EQU  >83               $
+IFZ    EQU  >84               IF
+GOZ    EQU  >85               GO
+GOTOZ  EQU  >86               GOTO
+GOSUBZ EQU  >87               GOSUB
+RETURZ EQU  >88               RETURN
+DEFZ   EQU  >89               DEF
+DIMZ   EQU  >8A               DIM
+ENDZ   EQU  >8B               END
+FORZ   EQU  >8C               FOR
+LETZ   EQU  >8D               LET
+BREAKZ EQU  >8E               BREAK
+UNBREZ EQU  >8F               UNBREAK
+TRACEZ EQU  >90               TRACE
+UNTRAZ EQU  >91               UNTRACE
+INPUTZ EQU  >92               INPUT
+DATAZ  EQU  >93               DATA
+RESTOZ EQU  >94               RESTORE
+RANDOZ EQU  >95               RANDOMIZE
+NEXTZ  EQU  >96               NEXT
+READZ  EQU  >97               READ
+STOPZ  EQU  >98               STOP
+DELETZ EQU  >99               DELETE
+REMZ   EQU  >9A               REM
+ONZ    EQU  >9B               ON
+PRINTZ EQU  >9C               PRINT
+CALLZ  EQU  >9D               CALL
+OPTIOZ EQU  >9E               OPTION
+OPENZ  EQU  >9F               OPEN
+CLOSEZ EQU  >A0               CLOSE
+SUBZ   EQU  >A1               SUB
+DISPLZ EQU  >A2               DISPLAY
+IMAGEZ EQU  >A3               IMAGE
+ACCEPZ EQU  >A4               ACCEPT
+ERRORZ EQU  >A5               ERROR
+WARNZ  EQU  >A6               WARNING
+SUBXTZ EQU  >A7               SUBEXIT
+SUBNDZ EQU  >A8               SUBEND
+RUNZ   EQU  >A9               RUN
+LINPUZ EQU  >AA               LINPUT
+*      EQU  >AB               Zpare token (LIBRARY)
+*      EQU  >AC               Zpare token (REAL)
+*      EQU  >AD               Zpare token (INTEGER)
+*      EQU  >AE               Zpare token (SCRATCH)
+*      EQU  >AF               Zpare token
+THENZ  EQU  >B0               THEN
+TOZ    EQU  >B1               TO
+STEPZ  EQU  >B2               STEP
+COMMAZ EQU  >B3               ,
+SEMICZ EQU  >B4               ;
+COLONZ EQU  >B5               :
+RPARZ  EQU  >B6               )
+LPARZ  EQU  >B7               (
+CONCZ  EQU  >B8               &          (CONCATENATE)
+*      EQU  >B9               spare token
+ORZ    EQU  >BA               OR
+ANDZ   EQU  >BB               AND
+XORZ   EQU  >BC               XOR
+NOTZ   EQU  >BD               NOT
+EQUALZ EQU  >BE               =
+LESSZ  EQU  >BF               <
+GREATZ EQU  >C0               >
+PLUSZ  EQU  >C1               +
+MINUSZ EQU  >C2               -
+MULTZ  EQU  >C3               *
+DIVIZ  EQU  >C4               /
+CIRCUZ EQU  >C5               ^
+*      EQU  >C6               spare token
+STRINZ EQU  >C7               QUOTED STRING
+UNQSTZ EQU  >C8               UNQUOTED STRING
+NUMZ   EQU  >C8               ALSO NUMERICAL STRING
+NUMCOZ EQU  >C8               ALSO UNQUOTED STRING
+LNZ    EQU  >C9               LINE NUMBER CONSTANT
+*      EQU  >CA               spare token
+ABSZ   EQU  >CB               ABS
+ATNZ   EQU  >CC               ATN
+COSZ   EQU  >CD               COS
+EXPZZ  EQU  >CE               EXP
+INTZ   EQU  >CF               INT
+LOGZ   EQU  >D0               LOG
+SGNZZ  EQU  >D1               SGN
+SINZ   EQU  >D2               SIN
+SQRZ   EQU  >D3               SQR
+TANZ   EQU  >D4               TAN
+LENZ   EQU  >D5               LEN
+CHRZZ  EQU  >D6               CHR$
+RNDZ   EQU  >D7               RND
+SEGZZ  EQU  >D8               SEG$
+POSZ   EQU  >D9               POS
+VAL    EQU  >DA               VAL
+STRZZ  EQU  >DB               STR$
+ASCZ   EQU  >DC               ASC
+PIZ    EQU  >DD               PI
+RECZ   EQU  >DE               REC
+MAXZ   EQU  >DF               MAX
+MINZ   EQU  >E0               MIN
+RPTZZ  EQU  >E1               RPT$
+ 
+*      EQU  >E2  to >E7
+ 
+NUMERZ EQU  >E8               NUMERIC
+DIGITZ EQU  >E9               DIGIT
+UALPHZ EQU  >EA               UALPHA
+SIZEZ  EQU  >EB               SIZE
+ALLZ   EQU  >EC               ALL
+USINGZ EQU  >ED               USING
+BEEPZ  EQU  >EE               BEEP
+ERASEZ EQU  >EF               ERASE
+ATZ    EQU  >F0               AT
+BASEZ  EQU  >F1               BASE
+*      EQU  >F2               spare token (TEMPORARY)
+*      EQU  >F3               spare token (VARIABLE)
+*      EQU  >F4               spare token (RELATIVE)
+*      EQU  >F5               spare token (INTERNAL)
+SEQUEZ EQU  >F6               SEQUENTIAL
+OUTPUZ EQU  >F7               OUTPUT
+UPDATZ EQU  >F8               UPDATE
+APPENZ EQU  >F9               APPEND
+FIXEDZ EQU  >FA               FIXED
+PERMAZ EQU  >FB               PERMANENT
+TABZ   EQU  >FC               TAB
+NUMBEZ EQU  >FD               #
+VALIDZ EQU  >FE               VALIDATE
+*      EQU  >FF               ILLEGAL VALUE
+********************************************************************************
+ 

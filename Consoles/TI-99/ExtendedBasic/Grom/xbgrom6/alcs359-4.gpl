@@ -1,0 +1,357 @@
+ 
+********************************************************************************
+       AORG >0B00
+*************************************************************
+*                BASIC KEYWORD TABLE                        *
+*      THE TOKEN IS ITS LEFT BINDING POWER                  *
+*************************************************************
+KEYTAB DATA CHAR1,CHAR2,CHAR3,CHAR4,CHAR5
+       DATA CHAR6,CHAR7,CHAR8,CHAR9,CHARA
+CHAR1  TEXT '!'
+       BYTE TREMZ             *  !
+       TEXT '#'
+       BYTE NUMBEZ            *  #
+       TEXT '&'
+       BYTE CONCZ             *  &
+       TEXT '('
+       BYTE LPARZ             *  (
+       TEXT ')'
+       BYTE RPARZ             *  )
+       TEXT '*'
+       BYTE MULTZ             *  *
+       TEXT '+'
+       BYTE PLUSZ             *  +
+       TEXT ','
+       BYTE COMMAZ            *  ,
+       TEXT '-'
+       BYTE MINUSZ            *  -
+       TEXT '/'
+       BYTE DIVIZ             *  /
+       TEXT ':'
+       BYTE COLONZ            *  :
+       TEXT ';'
+       BYTE SEMICZ            *  ;
+       TEXT '<'
+       BYTE LESSZ             *  <
+       TEXT '='
+       BYTE EQUALZ            *  =
+       TEXT '>'
+       BYTE GREATZ            *  >
+       TEXT '^'
+       BYTE CIRCUZ            *  ^
+       BYTE >FF
+CHAR2  TEXT '::'
+       BYTE SSEPZ             *  ::
+       TEXT 'AT'
+       BYTE ATZ               *  AT
+       TEXT 'GO'
+       BYTE GOZ               *  GO
+       TEXT 'IF'
+       BYTE IFZ               *  IF
+       TEXT 'ON'
+       BYTE ONZ               *  ON
+       TEXT 'OR'
+       BYTE ORZ               *  OR
+       TEXT 'PI'
+       BYTE PIZ               *  PI
+       TEXT 'TO'
+       BYTE TOZ               *  TO
+       BYTE >FF
+CHAR3  TEXT 'ABS'
+       BYTE ABSZ              *  ABS
+       TEXT 'ALL'
+       BYTE ALLZ              *  ALL
+       TEXT 'AND'
+       BYTE ANDZ              *  AND
+       TEXT 'ASC'
+       BYTE ASCZ              *  ASC
+       TEXT 'ATN'
+       BYTE ATNZ              *  ATN
+       TEXT 'BYE'
+       BYTE >03               *  BYE
+       TEXT 'CON'
+       BYTE >01               *  CONtinue
+       TEXT 'COS'
+       BYTE COSZ              *  COS
+       TEXT 'DEF'
+       BYTE DEFZ              *  DEF
+       TEXT 'DIM'
+       BYTE DIMZ              *  DIM
+       TEXT 'END'
+       BYTE ENDZ              *  END
+       TEXT 'EOF'
+       BYTE EOFZ              *  EOF
+       TEXT 'EXP'
+       BYTE EXPZZ             *  EXP
+       TEXT 'FOR'
+       BYTE FORZ              *  FOR
+       TEXT 'INT'
+       BYTE INTZ              *  INT
+       TEXT 'LEN'
+       BYTE LENZ              *  LEN
+       TEXT 'LET'
+       BYTE LETZ              *  LET                         <<<<<DELETE THIS<<<
+       TEXT 'LOG'
+       BYTE LOGZ              *  LOG
+       TEXT 'MAX'
+       BYTE MAXZ              *  MAX
+       TEXT 'MIN'
+       BYTE MINZ              *  MIN
+       TEXT 'NEW'
+       BYTE >00               *  NEW
+       TEXT 'NOT'
+       BYTE NOTZ              *  NOT
+       TEXT 'NUM'
+       BYTE >04               *  NUMber
+       TEXT 'OLD'
+       BYTE >05               *  OLD
+       TEXT 'POS'
+       BYTE POSZ              *  POS
+       TEXT 'REC'
+       BYTE RECZ              *  REC
+       TEXT 'REM'
+       BYTE REMZ              *  REMark
+       TEXT 'RES'
+       BYTE >06               *  RESequence
+       TEXT 'RND'
+       BYTE RNDZ              *  RND
+       TEXT 'RUN'
+       BYTE RUNZ              *  RUN
+       TEXT 'SGN'
+       BYTE SGNZZ             *  SGN
+       TEXT 'SIN'
+       BYTE SINZ              *  SIN
+       TEXT 'SQR'
+       BYTE SQRZ              *  SQR
+       TEXT 'SUB'
+       BYTE SUBZ              *  SUB
+       TEXT 'TAB'
+       BYTE TABZ              *  TAB
+       TEXT 'TAN'
+       BYTE TANZ              *  TAN
+       TEXT 'VAL'
+       BYTE VALZ              *  VAL
+       TEXT 'XOR'
+       BYTE XORZ              *  XOR
+       BYTE >FF
+CHAR4  TEXT 'BASE'
+       BYTE BASEZ             *  BASE
+       TEXT 'BEEP'
+       BYTE BEEPZ             *  BEEP
+       TEXT 'CALL'
+       BYTE CALLZ             *  CALL
+       TEXT 'CHR$'
+       BYTE CHRZZ             *  CHR$
+       TEXT 'DATA'
+       BYTE DATAZ             *  DATA
+       TEXT 'ELSE'
+       BYTE ELSEZ             *  ELSE
+       TEXT 'GOTO'
+       BYTE GOTOZ             *  GOTO
+       TEXT 'LIST'
+       BYTE >02               *  LIST
+       TEXT 'NEXT'
+       BYTE NEXTZ             *  NEXT
+       TEXT 'OPEN'
+       BYTE OPENZ             *  OPEN
+       TEXT 'READ'
+       BYTE READZ             *  READ
+       TEXT 'RPT$'
+       BYTE RPTZZ             *  RPT$
+       TEXT 'SAVE'
+       BYTE >07               *  SAVE
+       TEXT 'SEG$'
+       BYTE SEGZZ             *  SEG$
+       TEXT 'SIZE'
+       BYTE SIZEZ             *  SIZE
+       TEXT 'STEP'
+       BYTE STEPZ             *  STEP
+       TEXT 'STOP'
+       BYTE STOPZ             *  STOP
+       TEXT 'STR$'
+       BYTE STRZZ             *  STR$
+       TEXT 'THEN'
+       BYTE THENZ             *  THEN
+       BYTE >FF
+CHAR5  TEXT 'BREAK'
+       BYTE BREAKZ            *  BREAK
+       TEXT 'CLOSE'
+       BYTE CLOSEZ            *  CLOSE
+       TEXT 'DIGIT'
+       BYTE DIGITZ            *  DIGIT
+       TEXT 'ERASE'
+       BYTE ERASEZ            *  ERASE
+       TEXT 'ERROR'
+       BYTE ERRORZ            *  ERROR
+       TEXT 'FIXED'
+       BYTE FIXEDZ            *  FIXED
+       TEXT 'GOSUB'
+       BYTE GOSUBZ            *  GOSUB
+       TEXT 'IMAGE'
+       BYTE IMAGEZ            *  IMAGE
+       TEXT 'INPUT'
+       BYTE INPUTZ            *  INPUT
+       TEXT 'MERGE'
+       BYTE >08               *  MERGE
+       TEXT 'PRINT'
+       BYTE PRINTZ            *  PRINT
+       TEXT 'TRACE'
+       BYTE TRACEZ            *  TRACE
+       TEXT 'USING'
+       BYTE USINGZ            *  USING
+       BYTE >FF
+CHAR6  TEXT 'ACCEPT'
+       BYTE ACCEPZ            *  ACCEPT
+       TEXT 'APPEND'
+       BYTE APPENZ            *  APPEND
+       TEXT 'DELETE'
+       BYTE DELETZ            *  DELETE
+       TEXT 'LINPUT'
+       BYTE LINPUZ            *  LINPUT
+       TEXT 'NUMBER'
+       BYTE >04               *  NUMBER                     <<<DELETE THIS<<<<<<
+       TEXT 'OPTION'
+       BYTE OPTIOZ            *  OPTION
+       TEXT 'OUTPUT'
+       BYTE OUTPUZ            *  OUTPUT
+       TEXT 'RETURN'
+       BYTE RETURZ            *  RETURN
+       TEXT 'SUBEND'
+       BYTE SUBNDZ            *  SUBEND
+       TEXT 'UALPHA'
+       BYTE UALPHZ            *  UALPHA
+       TEXT 'UPDATE'
+       BYTE UPDATZ            *  UPDATE
+       BYTE >FF
+CHAR7  TEXT 'DISPLAY'
+       BYTE DISPLZ            *  DISPLAY
+       TEXT 'NUMERIC'
+       BYTE NUMERZ            *  NUMERIC
+       TEXT 'RESTORE'
+       BYTE RESTOZ            *  RESTORE
+       TEXT 'SUBEXIT'
+       BYTE SUBXTZ            *  SUBEXIT
+       TEXT 'UNBREAK'
+       BYTE UNBREZ            *  UNBREAK
+       TEXT 'UNTRACE'
+       BYTE UNTRAZ            *  UNTRACE
+       TEXT 'WARNING'
+       BYTE WARNZ             *  WARNING
+       BYTE >FF
+CHAR8  TEXT 'CONTINUE'
+       BYTE >01               *  CONTINUE                   <<<<DELETE THIS<<<<<
+       TEXT 'INTERNAL'
+       BYTE INTERZ            *  INTERNAL
+       TEXT 'RELATIVE'
+       BYTE RELATZ            *  RELATIVE
+       TEXT 'VALIDATE'
+       BYTE VALIDZ            *  VALIDATE
+       TEXT 'VARIABLE'
+       BYTE VARIAZ            *  VARIABLE
+       BYTE >FF
+CHAR9  TEXT 'PERMANENT'
+       BYTE PERMAZ            *  PERMANENT                  <<<DELETE THIS<<<<<<
+       TEXT 'RANDOMIZE'
+       BYTE RANDOZ            *  RANDOMIZE
+       BYTE >FF
+CHARA  TEXT 'RESEQUENCE'
+       BYTE >06               *  RESEQUENCE                 <<<DELETE THIS<<<<<<
+       TEXT 'SEQUENTIAL'
+       BYTE SEQUEZ            *  SEQUENTIAL
+       BYTE >FF
+*************************************************************
+* ERRTAB - Error table containing all of the error messages,*
+*          error numbers and the severity code for each     *
+*          error. The error call number is the data byte    *
+*          that must follow the CALL ERRZZ or CALL WARNZZ.  *
+*          Messages with severity of zero are system        *
+*          messages and not error messages.                 *
+*                                                           *
+*  Message, Error #, Severity                     CALL #    *
+*************************************************************
+ERRTAB DATA MSGFST            * "READY"
+       BYTE 0,0
+       DATA MSGBRK            * "BREAKPOINT"
+       BYTE 0,0
+       DATA MSG10             * "NUMERIC OVERFLOW"
+       BYTE 10,1
+       DATA MSG14             * "SYNTAX ERROR"
+       BYTE 14,9
+       DATA MSG16             * "ILLEGAL AFTER SUBPROGRAM"
+       BYTE 16,9
+       DATA MSG17             * "UNMATCHED QUOTES"
+       BYTE 17,9
+       DATA MSG19             * "NAME TOO LONG"
+       BYTE 19,9
+       DATA MSG24             * "STRING-NUMBER MISMATCH"
+       BYTE 24,9
+       DATA MSG25             * "OPTION BASE ERROR"
+       BYTE 25,9
+       DATA MSG28             * "IMPROPERLY USED NAME"
+       BYTE 28,9
+       DATA MSG36             * "IMAGE ERROR"
+       BYTE 36,9
+       DATA MSG39             * "MEMORY FULL"
+       BYTE 39,9
+       DATA MSG40             * "STACK OVERFLOW"
+       BYTE 40,9
+       DATA MSG43             * "NEXT WITHOUT FOR"
+       BYTE 43,9
+       DATA MSG44             * "FOR-NEXT NESTING"
+       BYTE 44,9
+       DATA MSG47             * "MUST BE IN SUBPROGRAM"
+       BYTE 47,9
+       DATA MSG48             * "RECURSIVE SUBPROGRAM CALL"
+       BYTE 48,9
+       DATA MSG49             * "MISSING SUBEND"
+       BYTE 49,9
+       DATA MSG51             * "RETURN WITHOUT GOSUB"
+       BYTE 51,9
+       DATA MSG54             * "STRING TRUNCATED"
+       BYTE 54,1
+       DATA MSG57             * "BAD SUBSCRIPT"
+       BYTE 57,9
+       DATA MSG56             * "SPEECH STRING TOO LONG"
+       BYTE 56,9
+       DATA MSG60             * "LINE NOT FOUND"
+       BYTE 60,9
+       DATA MSG61             * "BAD LINE NUMBER"
+       BYTE 61,9
+       DATA MSG62             * "LINE TOO LONG"
+       BYTE 62,9
+       DATA MSG67             * "CAN'T CONTINUE"
+       BYTE 67,9
+       DATA MSG69             * "COMMAND ILLEGAL IN PROGRAM"
+       BYTE 69,9
+       DATA MSG70             * "ONLY LEGAL IN A PROGRAM"
+       BYTE 70,9
+       DATA MSG74             * "BAD ARGUMENT"
+       BYTE 74,9
+       DATA MSG78             * "NO PROGRAM PRESENT"
+       BYTE 78,1
+       DATA MSG79             * "BAD VALUE"
+       BYTE 79,9
+       DATA MSG81             * "INCORRECT ARGUMENT LIST"
+       BYTE 81,9
+       DATA MSG83             * "INPUT ERROR" (WARNING)
+       BYTE 83,1
+       DATA MSG84             * "DATA ERROR"
+       BYTE 84,9
+       DATA MSG109            * "FILL ERROR"
+       BYTE 109,9
+       DATA MSG130            * "I/O ERROR" (WARNING)
+       BYTE 130,1
+       DATA MSG130            * "I/O ERROR"
+       BYTE 130,9
+       DATA MSG135            * "SUBPROGRAM NOT FOUND"
+       BYTE 135,9
+       DATA MSG60             * "LINE NOT FOUND" (WARNING)
+       BYTE 60,1
+       DATA MSG97             * "PROTECTIONG VIOLATION"     <<<<DELETE THIS<<<<<
+       BYTE 97,9
+       DATA MSG34             * "UNRECOGNIZED CHARACTER"
+       BYTE 20,9
+* Following message is added 6/24/81 for the INPUT bug.
+       DATA MSG83             * "INPUT ERROR"
+       BYTE 83,9
+ 

@@ -1,0 +1,605 @@
+ 
+ 
+*************************************************************
+* CALL SAY(....................)                            *
+*  Decode given parameter(s). Store all data first, then go *
+*   speak it all at once.                                   *
+*************************************************************
+SAY    CEQ  LPARZ,@CHAT       Must start with "("
+       BR   ERRSYN
+       DST  @VSPTR,@FAC2      Save current top of stack on
+       XML  VPUSH              the stack
+       DST  255,@BYTES        255 bytes = 85 3 byte entires
+       XML  GETSTR            Get temp speech list string
+       DST  >001C,@FAC        Indicate it is temp string (SREF=>001C)
+       DST  >6500,@FAC2       Indicate it is string entry
+       DST  @SREF,@FAC4       Save pointer to temp string
+       DST  @BYTES,@FAC6      Length is 255
+       XML  VPUSH             Make it semi-permenant
+* Set up pointers into the speak list
+       DST  @FAC4,@PTFBSL     Front points to begining
+       DST  @FAC4,@PTLBSL     Last now points to beginning
+       DST  @PTFBSL,@PTEBSL
+       DADD @FAC6,@PTEBSL     End points to the end+1
+       CALL SETRW             Set PHROM read/write address
+       CALL WAIT              Wait till no one is speaking
+DIRSPK CALL GETPRM            Get next parameter
+       BS   NEXT1             If non-null ASCII string
+       DST  @FAC4,@PTFCIS     Set up pointer to first char
+       DST  @FAC6,@PTLCIS     Set ptr-to-last-char-in-string
+       DADD @PTFCIS,@PTLCIS    by adding length-of-string
+       DDEC @PTLCIS            and subtracting 1
+* Make a speech list
+       CALL SETRW             Set speech read/write addrs
+       DST  @PTFCIS,@PTCCIS   Start at beginning of string
+       CLR  @TOTTIM           Clear total time delay
+       CALL GETTIM            Get first timing mark
+       CALL TIMING            Get any subsequent marks
+* The total first time delay is in TOTTIM now
+GB158  DCH  @PTLCIS,@PTCCIS   While more string
+       BS   GB1A7
+       CALL PHRASE            Get next phrase
+* If spell flag is 0, try to look the phrase up. If it
+* can not be found, then set the spell flag, and it will be
+* spelled out. If found, save on speak list.
+       CZ   @SPLFLG           There is a phrase
+       BR   GB173
+       CALL LOOKUP            Try to look it up in the PHROM
+       DCZ  @DATAAD           If not found then
+       BR   GB170
+       ST   1,@SPLFLG         Set the spell flag
+       BR   GB173
+GB170  CALL STDATA            Store data in list
+* If spell flag is 1, set time delay to >3C, and take the
+* phrase one character at a time (spell it). Look up each
+* character: if not found, use 'UHOH' data instead.
+* Regardless, store data on speak list.
+GB173  CEQ  1,@SPLFLG         Need to spell it out?
+       BR   GB1A0
+       DST  @PTLCIP,@PTLCIL   Est last char to spell out
+       ST   >3C,@TOTTIM       >3C used because sounds good
+*                      Take each single character
+* Skip over any embedded spaces encountered in a phrase
+GB17E  CEQ  SPACE,V*PTFCIP
+       BR   GB188
+       DINC @PTFCIP
+       BR   GB17E
+* Set first and last pointers to same one character
+GB188  DST  @PTFCIP,@PTLCIP
+       CALL LOOKUP            Try to look it up
+* If not found, use data to 'UHOH'
+       DCZ  @DATAAD
+       BR   GB196
+       DST  >71F4,@DATAAD     Put addr of 'UHOH' in
+GB196  CALL STDATA            Store data on speak list
+       DINC @PTFCIP           Go on to next character
+       DCH  @PTLCIL,@PTFCIP   Until done all
+       BR   GB17E
+* At this point, get next timing group. The first timing
+* character has already been found, and it's value is still
+* in TIMLEN. Therefore, initiatory call to GETTIM not
+* needed. Simply clear TOTTIM and call TIMING.
+GB1A0  CLR  @TOTTIM
+       CALL TIMING
+       BR   GB158
+* At this point, finished all the phrases in this string.
+* TOTTIM should equal >FE, it indicate end of sting If it
+* doesn't equal >FE, it indicates that a timing group was
+* put on the end of the string. Therefore, save the timing
+* group with a null data address to show it is only timing.
+GB1A7  CEQ  >FE,@TOTTIM
+       BS   NEXT1
+       DCLR @DATAAD
+       CALL STDATA
+* Next item could be direct string.
+NEXT1  CEQ  COMMAZ,@CHAT      If direct string present
+       BR   SPEAK
+       CALL GETPRM            Get the next parameter
+       BS   NEXT2             If non-null direct string
+       ST   >FF,@TOTTIM       Mark TOTTIM as direct string
+       XML  VPUSH             Save direct string on stack
+       DST  @VSPTR,@DATAAD    Store stack addr on string
+       CALL STDATA            And add to the speak list
+* If the next character is a comma, loop thru it again
+NEXT2  CEQ  COMMAZ,@CHAT
+       BS   DIRSPK
+* If end fall into SPEAK
+*************************************************************
+* SPEAK will actually speak the speech list. It tests the   *
+* timing byte to see if it is an >FF. If it is, then the    *
+* data following it points to a direct speech data string   *
+* in VDP. If it is not, then the data following it points   *
+* to a PHROM speech data list. In the first case, this      *
+* routine will issue a speak external command to the PHROM  *
+* and then feed bytes out to the PHROM as it requests them. *
+* In the second case, the address will be loaded out to the *
+* PHROM, and then a speak command will be issued.           *
+*************************************************************
+SPEAK  CALL SETRW             Set read/write address
+GB1CE  DCHE @PTLBSL,@PTFBSL   More speech list to go
+       BS   GB258
+       CALL WAIT              Yes, wait until previous
+*                              speech is though
+       CEQ  >FF,V*PTFBSL      External speech data
+       BS   GB1FE
+       ST   V*PTFBSL,@TIMER   No, load timer
+       NEG  @TIMER             and neg it to correct
+       DST  V@1(@PTFBSL),@PTFBPH   Put addr into PTFBPH
+       DADD 3,@PTFBSL               and skip to next node
+LOOP1  CGE  0,@TIMER          Wait for time delay
+       BR   LOOP1
+       CZ   @PTFBPH           If there is data
+       BS   GB1FC
+       CALL LOADAD            Load the addr to PHROM
+       ST   >50,@>8300(@WRITE)  and issue speak command
+GB1FC  BR   CONTIN
+GB1FE  DINC @PTFBSL           Speak external, skip over >FF
+       DST  V*PTFBSL,@PTCBED  Set up pointer to 1st byte
+       DST  V@4(@PTCBED),@PTCBED    in external speech data
+       DINCT @PTFBSL          Skip addr bytes
+       ST   V@-1(@PTCBED),@LENWST  Get Len of whole string
+DIRSPH SUB  3,@LENWST         Minus 3 bytes overhead
+* All external speech strings start with a >60
+       CEQ  >60,V*PTCBED      Bad speech string
+       BR   ERRBV
+       CALL WAIT              Wait for go ahead
+       DINCT @PTCBED          Skip spk ext & 1st byte len
+       ST   V*PTCBED,@LENCST  Get len of current string
+       DINC @PTCBED           Skip len byte to 1st real byte
+       ST   16,@TEMP2         Do 1st 16 bytes (fill buff)
+       ST   >60,@>8300(@WRITE) Start Speak External
+LOOPR  ST   V*PTCBED,@>8300(@WRITE) Write byte to PHROM
+       DINC @PTCBED           Go to next byte
+       DEC  @LENWST           1 less char in whole string
+       BS   CONTIN            Finished whole string?
+       DEC  @LENCST           1 less char in curr string
+       BS   DIRSPH            Finished current string?
+       DEC  @TEMP2            1 less char in this loop
+       BR   LOOPR             Not finished curr loop yet?
+GB241  ST   @>8300(@READ),@SPKSTS   Read status from PHROM
+* If the next statement is true, it means that speak was
+* probably interupted and that it is shot at this point.
+* Therefore, we are going to quit now.
+       CLOG >80,@SPKSTS
+       BS   CONTIN
+       CLOG >40,@SPKSTS       Loop till buff below half
+       BS   GB241
+       ST   8,@TEMP2          Put 8 more bytes to PHROM
+       BR   LOOPR              and go do these
+CONTIN B    GB1CE             We've said it all!!
+* Now pop all entries off stack that we put on!
+GB258  XML  VPOP              Free up a temporary string
+       DCEQ @FAC2,@VSPTR
+       BR   GB258
+       BR   GB0F2             And return to the caller
+*************************************************************
+* SPGET subprogram. Load speech data from external device.  *
+*       Use standard file I/O                               *
+*************************************************************
+SPGET  CEQ  LPARZ,@CHAT       Must have left parenthesis
+       BR   ERRSYN
+       CALL SETRW             Set PHROM read/write address
+       CALL WAIT              Wait till no one is speaking
+NXTPAR CALL GETPRM            Get the next parameter
+       DCZ  @FAC6             If non-null ASCII string
+       BS   GB318
+       DST  @FAC4,@PTFCIS     Pointer to 1st char in string
+       DST  @FAC6,@PTLCIS     Pointer to last-char-in-string
+       DADD @PTFCIS,@PTLCIS    by adding length-of-string
+       DDEC @PTLCIS             and subtracting 1
+       CALL SETRW             Set the speech read/write addr
+       DST  @PTFCIS,@PTCCIS   Set curr char to first char
+       CLR  @TOTTIM           Clear total time delay
+       CALL GETTIM            Get first timing mark
+       CALL TIMING            Get any subsquent marks
+* Get one phrase, and look it up. If the phrase is not found,
+* substitute in 'UHOH'.
+       DCH  @PTLCIS,@PTCCIS   Possible phrase
+       BS   GB318
+       CALL PHRASE            Yes, go get it
+       CEQ  1,@SPLFLG         Spell flag set then set
+       BR   GB29C
+       DST  @PTFCIP,@PTLCIP    last ptr to first (1 char)
+GB29C  CALL LOOKUP            Look up the phrase
+       DCZ  @DATAAD           If not there,
+       BR   GB2AA
+       DST  >71F4,@DATAAD      use 'UHOH' data addr
+       ST   >51,@STRLEN        'UHOH' data length
+* Data must be in PHRADD and PHLEN, so move it
+GB2AA  DST  @DATAAD,@PHRADD
+       ST   @STRLEN,@PHLEN
+       ADD  3,@PHLEN          For overhead info
+* There must be a variable to put this data in. If not, error
+       XML  SPEED
+       BYTE SYNCHK
+       BYTE COMMAZ
+       XML  SYM               Find symbol in table
+       XML  SMB               Evaluate andy subscripts
+       XML  VPUSH             Save for assignment
+       CLR  @BYTES            Two byte value
+       ST   @PHLEN,@BYTES+1   Length of string needed
+       XML  GETSTR            Get a string for the data
+       CALL SETRW             Set up speech read/write address
+       DST  >001C,@FAC        Now build string FAC entry    (>001C=SREF)
+       DST  >6500,@FAC2       String ID
+       DST  @SREF,@FAC4       Pointer to string
+       DST  @BYTES,@FAC6      Length of string
+       DST  >6000,V*SREF      Mark string as speech data
+       ST   @PHLEN,V@2(@SREF) Put in string length
+       DSUB 3,V@1(@SREF)       minus thei info
+* LOADAD expects addr to be in PTFBPH, so move it.
+       DST  @PHRADD,@PTFBPH
+       CALL LOADAD
+* Going to copy string from PHROM to VDP. The actual data
+* from PHROM is in bit-reversed order, so must reverse the
+* order after reading in the order. Remember that 3 bytes
+* PHLEN are our own overhead, so don't copy all
+GB2EB  CH   3,@PHLEN
+       BR   GB316
+       ST   >10,@>8300(@WRITE) Issue read byte command
+       ST   @>8300(@READ),@BYTE3 Read the byte
+* the following code is somewhat tricky. It will bit
+* reverse the contents of BYTE3 into BYTE1 through
+* BYTE2 by means of word shifts. Note the definition of
+* BYTE1 , BYTE2, and BYTE3 in EQU's. You might try an
+* example if it isn't clear what is going on.
+       CLR  @BYTE2
+       ST   >08,@TEMP1
+RNDAG  DSRC 1,@BYTE2
+       DSLL 1,@BYTE1
+       DEC  @TEMP1
+       BR   RNDAG
+* Store the bit-corrected byte into the string & inc str ptr
+       ST   @BYTE1,V@3(@SREF)
+       DINC @SREF
+       DEC  @PHLEN            Dec the string length
+       BR   GB2EB             Go do next char if there is one
+GB316  XML  ASSGNV            Assign the string to variable
+GB318  CEQ  COMMAZ,@CHAT      If more go do
+       BS   NXTPAR
+       BR   GB0F2
+*************************************************************
+* GETPAM gets the next string paameter passed to the        *
+* routine. If that parameter is non-exist or null, then     *
+* condition bit is set. If the parameter is there then      *
+* condition bit is reset and the FAC entry describes the    *
+* string. In either case, return with condition is done.    *
+*************************************************************
+GETPRM XML  PGMCHR            Get next token
+       CEQ  COMMAZ,@CHAT      Go set condition no parm
+       BS   SETCB
+       XML  PARSE
+       BYTE RPARZ
+       CEQ  >65,@FAC2         If not string, error
+       BR   ERRSNM
+       DCZ  @FAC6             Set cond if null string
+       RTNC                   Else return
+SETCB  CEQ  @>8300,@>8300     Set condition bit
+       RTNC
+*************************************************************
+* Get the next phrase out of the current string. The phrase *
+* may begin with a #, which means it will continue to the   *
+* next #, or it many begin with an ordinary character, in   *
+* which case it will end with the character just before the *
+* first timing character encountered. In either case, the   *
+* end of the string will indicate a legal end of phrase if  *
+* it occurs before the usual indicator!                     *
+*************************************************************
+PHRASE CEQ  NUMBER,@CCHAR     Phrase start with #?
+       BR   GB370
+       DINC @PTCCIS           Yes, inc CC ptr past #
+GB33C  CEQ  SPACE,V*PTCCIS    Skip spaces
+       BR   GB346
+       DINC @PTCCIS
+       BR   GB33C
+GB346  CEQ  NUMBER,V*PTCCIS   All spaces?
+       BR   GB34F
+       DINC @PTCCIS           Yes, skip this # too
+       RTN                    And ignore this phrase
+GB34F  DST  @PTCCIS,@PTFCIP   Save 1st char in phrase
+GB352  DINC @PTCCIS           Go on to next char
+* Got to watch for end of string. If encountered before a
+* #, act like char after string is #. Then last char will
+* be char before, or the last char in the string!!
+       DCH  @PTLCIS,@PTCCIS
+       BS   FNDNUM
+       ST   V*PTCCIS,@CCHAR   No, get char in CCHAR
+       CEQ  NUMBER,@CCHAR     If not # continue looking
+       BR   GB352
+FNDNUM DST  @PTCCIS,@PTLCIP   Last char in phrase is one
+       DDEC @PTLCIP            before the #
+       DINC @PTCCIS           Point to char after #
+       CALL GETTIM            Get 1st timing char after phrase
+       CLR  @SPLFLG           Indicate don't spell
+       BR   GB38B             No # as 1st char in phrase
+GB370  DST  @PTCCIS,@PTFCIP   Curr char is 1st char phrase
+       CLR  @SPLFLG           Assume don't spell
+       CHE  >41,@CCHAR        If not alphabetic   (>41="A")
+       BS   GB37C
+       INC  @SPLFLG            set spell flag
+* Need to find end of phrase, which is char before next
+* timing char we find. Therefore, look for a timing char!
+GB37C  DINC @PTCCIS
+       CALL GETTIM
+       CEQ  >FF,@TIMLEN       If not timing, loop
+       BS   GB37C
+       DST  @PTCCIS,@PTLCIP   Char before curr char is
+       DDEC @PTLCIP            the last char in phrase
+GB38B  RTN
+*************************************************************
+* TIMING will loop through chars in string until it finds   *
+* non-timing char. Non-timing chars have TIMLEN values of   *
+* >FE or >FF. GETTIM must be called before this routine to  *
+* establish a correct value of TIMLEN. Also, most likely    *
+* TOTTIM should have been cleared.                          *
+*************************************************************
+TIMING CHE  >FE,@TIMLEN
+       BS   GB39B
+       DADD @TIMLEN,@TOTTIM
+       DINC @PTCCIS
+       CALL GETTIM
+       BR   TIMING
+GB39B  RTN
+*************************************************************
+* GETTIM will examine the current char in the string and    *
+* set TIMLEN to the appropriate time delay value. TIMLEN    *
+* can take on the following values:                         *
+*           >00 if char is timing '+'                       *
+*           >06 if char is timing ' '                       *
+*           >0C if char is timing '-'                       *
+*           >12 if char is timing ','                       *
+*           >1E if char is timing ';'                       *
+*           >30 if char is timing ':'                       *
+*           >3C if char is timing '.'                       *
+*           >FE if char is out of stirng bounds             *
+*           >FF if char is not timing                       *
+* Note that to test timing, some manipulation of PTCCIS     *
+* would be neccesary, so it is stored and used in TEMP1     *
+*************************************************************
+GETTIM ST   V*PTCCIS,@CCHAR   Get the char
+       DST  @PTCCIS,@TEMP1     store curr ptr in TEMP1
+       DCH  @PTLCIS,@TEMP1     out of string bounds?
+       BR   GB3AC
+       ST   >FE,@TIMLEN       Yes, load value and return
+       RTN
+GB3AC  CH   SEMICO,@CCHAR     Can not be timing
+       BS   NOTIME
+       CEQ  SPACE,@CCHAR
+       BR   GB3C5
+       ST   6,@TIMLEN
+GB3B9  CEQ  SPACE,V@1(@PTCCIS) While spaces
+       BR   GB3C4
+       DINC @PTCCIS           Skip them
+       BR   GB3B9
+GB3C4  RTN
+GB3C5  CEQ  PLUS,@CCHAR
+       BR   GB3D4
+       DINC @TEMP1            Need to test the next char
+       CALL NUMERC            Is it numeric
+       BS   NOTIME            Was numeric => not timing char
+       CLR  @TIMLEN           Not numeric => set as no timing
+       RTN
+GB3D4  CEQ  COMMAT,@CCHAR
+       BR   GB3DD
+       ST   >12,@TIMLEN
+       RTN
+GB3DD  CEQ  PERIOD,@CCHAR
+       BR   GB3F4
+       DDEC @TEMP1            Go back to preceding char
+       CALL NUMERC            Is it numeric?
+       BR   PTIME             No, so it is timing
+       DINCT @TEMP1           Yes, on to following char
+       CALL NUMERC            Is it numeric too?
+       BS   NOTIME            Yes, both numeric => not timing
+PTIME  ST   >3C,@TIMLEN       Both not numeric  => timing
+       RTN
+GB3F4  CEQ  HYPEN,@CCHAR
+       BR   GB404
+       DINC @TEMP1            Check next char
+       CALL NUMERC            Is it numeric?
+       BS   NOTIME            Was numeric => not a timing char
+       ST   >0C,@TIMLEN       Was not numeric => set as timing
+       RTN
+GB404  CEQ  COLON,@CCHAR
+       BR   GB40D
+       ST   >30,@TIMLEN
+       RTN
+GB40D  CEQ  SEMICO,@CCHAR
+       BR   NOTIME
+       ST   >1E,@TIMLEN
+       RTN
+NOTIME ST   >FF,@TIMLEN       Set as no timing char present
+       RTN
+*************************************************************
+* NUMERC tests the char pointed to by PTCCIS and verifies   *
+* the following:                                            *
+*  1 - it is within the current string boundaries           *
+*  2 - it is numeric (i.e. between '0' and '9')             *
+* If both of the above conditions are true, COND is set     *
+* upon return, otherwise COND is reset                      *
+*************************************************************
+NUMERC DCH  @PTLCIS,@TEMP1
+       BS   GB430
+       DCH  @TEMP1,@PTFCIS
+       BS   GB430
+       CHE  >30,V*TEMP1
+       BR   GB430
+       CH   >39,V*TEMP1
+       BR   SETCB
+GB430  RTNC
+*************************************************************
+* LOOKUP is a prolong routine to SEARCH. In each PHROM,     *
+* there may be 2 trees, one starting at >0000 and the other *
+* at >8000. Either may or may not be present. Presences is  *
+* determined if a >AA byte is at the starting location.     *
+* LOOKUP determines if the tree at >0000 is in, and if so,  *
+* calls SEARCH with that addr. If that tree is not present  *
+* or the phrase couldn't be found in it, LOOKUP then checks *
+* if the tree at >8000 is present, and again, if so, calls  *
+* SEARCH with that tree address. If the word was found in   *
+* the first tree, or after searching the second tree, the   *
+* routine will return.                                      *
+*************************************************************
+LOOKUP DCLR @BYTE1            BYTE1 contains addr of curr tree
+TRYAGN DST  @BYTE1,@PTFBPH    Look for >AA tree header
+       CALL LOADAD            LOADAD expects addr in PTFBPH
+       ST   >10,@>8300(@WRITE) Put out read byte command
+       CEQ  >AA,@>8300(@READ)  Tree out there?
+       BR   GB44E
+       DINC @PTFBPH           Skip the tree header
+       CALL SEARCH            Go search this PHROM tree
+       DCZ  @DATAAD           Phrase found => exit
+       BR   FOUND
+GB44E  DADD >8000,@BYTE1      Go to start of next PHROM tree
+* Note >8000 + >8000 = >0000 => tried both trees
+       DCZ  @BYTE1
+       BR   TRYAGN
+       DCLR @DATAAD           Didnt find phrase in either tree
+FOUND  RTN
+*************************************************************
+* SEARCH actually searches the PHROM tree for the phrase.   *
+* The PHROM tree organization is as follows:                *
+*        (i.e. this is one phrase node)                     *
+*              phrase ASCII length      1 byte              *
+*              actual ASCII characters  n bytes             *
+*              less then pointer        2 bytes             *
+*              greater then pointer     2 bytes             *
+*              speech data pointer      3 bytes             *
+*              speech data length       1 byte              *
+* The comparison of two words proceeds on a char by char    *
+* basis, where length is secondary to char values, i.e.     *
+* move > answer; number < we; eight < eighty; etc...        *
+*************************************************************
+SEARCH CALL LOADAD            Set PHROM to start phrase node
+       ST   >10,@>8300(@WRITE) Issue read byte command
+       CLR  @PTLCPH           Length of phrase => PTLCPH
+       ST   @>8300(@READ),@PTLCPH+1 (stored as 2 byte value)
+       DADD @PTFBPH,@PTLCPH   Add front ptr giving end ptr
+       DST  @PTFBPH,@PTCCPH   Set up curr char as 1 beyond
+       DINC @PTCCPH            length byte
+       DST  @PTFCIP,@PTCCIP   Reset current ptr into phrase
+* Compare two characters
+NEXT   ST   >10,@>8300(@WRITE) Issue read byte command
+       ST   @>8300(@READ),@PHDATA Get char in from PHROM
+       CEQ  V*PTCCIP,@PHDATA  Compare the char
+       BR   GB4D1
+       DINC @PTCCPH           Equal, advance both pointers
+       DINC @PTCCIP
+       CEQ  SPACE,V*PTCCIP    Skip extra spaces
+       BR   GB4A1
+GB48D  CEQ  SPACE,V@1(@PTCCIP) While spaces
+       BR   GB498
+       DINC @PTCCIP           Skip them
+       BR   GB48D
+* By skipping extra spaces, might have reached end of phrase.
+* If this is true, next char in phrase = #. If so, advance
+* the pointer to be beyond end of phrase.
+GB498  CEQ  NUMBER,V@1(@PTCCIP)
+       BR   GB4A1
+       DINC @PTCCIP
+GB4A1  DCH  @PTLCPH,@PTCCPH   End of PHROM word?
+       BR   GB4C6
+       DCH  @PTLCIP,@PTCCIP   Yes, end of phrase
+       BR   GB4C0
+       DST  @PTLCPH,@PTFBPH   Yes, word found
+* Skip 5 bytes down from last char to data pointer
+       DADD 6,@PTFBPH
+       CALL READAD            Set data addr => DATAAD
+       ST   >10,@>8300(@WRITE) Issue read byte command
+       ST   @>8300(@READ),@STRLEN Get length of speech data
+       RTN
+GB4C0  DST  3,@PTFBPH         Move 3 bytes past PTLCPH
+       BR   NXTPHR
+GB4C6  DCH  @PTLCIP,@PTCCIP   2 characters
+       BR   NEXT
+       DST  1,@PTFBPH         Phrase linger: use LT ptr
+       BR   NXTPHR
+* Two characters compared were not equal
+GB4D1  DST  3,@PTFBPH         3 bytes past last to GT
+       CH   V*PTCCIP,@PHDATA  After phrase
+       BR   NXTPHR
+       DDECT @PTFBPH          Back up 2 bytes to LT link
+* Go get next phrase out of the PHROM to compare
+NXTPHR DADD @PTLCPH,@PTFBPH   Add displacement to last char
+       CALL READAD             and get the new address
+       DCZ  @DATAAD           More leaves on this tree
+       BR   GB4E8
+       RTN                    No, return empty handed
+GB4E8  DST  @DATAAD,@PTFBPH   Store new addr in PTFBPH
+       BR   SEARCH            Go compare this new word!
+* The program should never reach this point!! It should
+* return somewhere up above.
+*************************************************************
+* LOADAD will set the addr out in the PHROM to the addr     *
+* found in PTFBPH. Note that the PHROM is expecting five    *
+* nybbles to be written out as the address.                 *
+*************************************************************
+LOADAD DST  @PTFBPH,@TEMP1    This is destructive, so copy
+       DST  @PTFBPH,@TEMP2     address into temporary areas
+       SRL  4,@TEMP1          Isolate the MSN of the MSB
+       SRL  4,@TEMP1+1        Isolate the MSN of the LSB
+       DAND >0F0F,@TEMP2      Isolate the LSN of the MSB, LSB
+       DOR  >4040,@TEMP1      Include a 4 as MSN of all 4 nybbles
+       DOR  >4040,@TEMP2       to indicate a Load Address Command
+       ST   @TEMP2+1,@>8300(@WRITE) Write out the LSN of the LSB
+       ST   @TEMP1+1,@>8300(@WRITE) Write out the LSN of the MSB
+       ST   @TEMP2,@>8300(@WRITE)   Write out the MSN of the LSB
+       ST   @TEMP1,@>8300(@WRITE)   Write out the MSN of the MSB
+       ST   >40,@>8300(@WRITE)      Write out 0 as fifth nybble
+       RTN
+*************************************************************
+* READAD will read an address from the PHROM and store it   *
+* in DATAAD. Note that PTFBPH should contain the addr of    *
+* the PHROM location to be read so LOADAD will work.        *
+*************************************************************
+READAD CALL LOADAD            Set the addr of the PHROM
+       ST   >10,@>8300(@WRITE) Get high byte of addr
+       ST   @>8300(@READ),@DATAAD Stroe it in DATAAD
+       ST   >10,@>8300(@WRITE) Get low byte of addr
+       ST   @>8300(@READ),@DATAAD+1 Store it in DATAAD+1
+       RTN
+*************************************************************
+* STDATA will store the data in DATAAD and TOTTIM onto the  *
+* speech list. It will also check that there is room on the *
+* speech list for this entry, and abort with error if not.  *
+*************************************************************
+STDATA DCEQ @PTEBSL,@PTLBSL   Is there room?
+       BS   ERRSSL
+       MOVE 3,@TOTTIM,V*PTLBSL   Put data in list
+       DADD 3,@PTLBSL              and inc top of list
+       RTN
+*************************************************************
+* WAIT loops until the speech peripheral goes idle.         *
+*************************************************************
+*    ( Loop until nobody is talking)
+WAIT   ST   @>8300(@READ),@SPKSTS  Read status from PHROM
+       CLOG >80,@SPKSTS
+       BR   WAIT
+       RTN
+*************************************************************
+* SETRW moves addrs of speech read/write from GROM to VDP   *
+*************************************************************
+SETRW  MOVE 4,G@>0046,@READ
+       RTN
+*************************************************************
+*                    ERROR MESSAGES                         *
+*************************************************************
+*      The following calls are in EXECS file.               *
+* ERRSYN CALL ERRZZ           * SYNTAX ERROR                *
+*        BYTE 3                                             *
+* ERRSNM CALL ERRZZ           * STRING-NUMBER MISMATCH      *
+*        BYTE 7                                             *
+* ERRBV  CALL ERRZZ           * BAD VALUE                   *
+*        BYTE 30                                            *
+* ERRIAL CALL ERRZZ           * INCORRECT ARGUMENT LIST     *
+*        BYTE 31                                            *
+*************************************************************
+ERRSSL CALL ERRZZ             * SPEECH STRING TOO LONG
+       BYTE 21
+ 
+********************************************************************************
+       AORG >17FE
+ 
+       DATA >E3F8
+ 
+ 

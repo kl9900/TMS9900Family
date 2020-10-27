@@ -1,0 +1,405 @@
+ 
+*************************************************************
+*              EDIT a line into a program                   *
+*                                                           *
+* Must be called with the following set up:                 *
+*    FAC    = line number of line to be edited into program *
+*    CHAT   = length of line                                *
+*    CRNBUF = crunched line                                 *
+*************************************************************
+EDITLN CLOG >80,@FLAG         Protection violation
+       BR   ERRPV
+       CALL CLSALL            Close any open files
+       CALL KILSYM            Kill symbol table
+       CLR  @STPT             Restore STPT
+       ST   @CHAT,@STPT+1
+*************************************************************
+* @CHAT=1 ? YES : LINE NUMBER ONLY -  GO TO DELETE THE LINE *
+*           NO  : INSERT A NEW LINE OR REPLACE EXISTING LINE*
+*************************************************************
+       CEQ  >01,@CHAT         Something besides line #
+       BR   INSREP
+       CLOG >01,@FLAG         Auto-number mode on
+       BS   G66F0
+       AND  >FE,@FLAG         Reset AUTONUM mode
+RTNSET CEQ  @>8300,@>8300     Set condition bit
+       RTNC                   And return
+G66F0  DCEQ @ENLN,@STLN       If no program
+       BS   RTNSET
+*************************************************************
+* EDITZ1 Delete the line # from line-#-buffer.              *
+*        Delete the text from program text area.            *
+*************************************************************
+EDITZ1 XML  SPEED             Try to find the given line #
+       BYTE SEETWO
+       BR   RTNSET            Return if not found
+       XML  DELREP            Remove it's text from program
+*   Delete the 4 bytes from the line # table
+       DST  @EXTRAM,@VARY2    Pointer to line pointer
+       DINC @VARY2            Advance to last byte of entry
+       DDECT @EXTRAM          Point to first byte of entry
+       DST  @EXTRAM,@VAR0
+       DDEC @VAR0             Last byte of next line entry
+*                              Move down 4 bytes from here
+       DSUB @STLN,@EXTRAM     # of bytes to move down
+       DCZ  @EXTRAM
+       BS   G6714
+       DST  @EXTRAM,@ARG      Put in arg for MVDN
+       XML  MVDN              Move one byte at a time
+G6714  DADD >04,@STLN         New start addr of line # tab
+       CZ   @RAMTOP           If ERAM not exist
+       BR   G6724
+       DCH  @>8370,@STLN      Delete the only line
+       BS   TOPL05
+       BR   G672E             With ERAM
+G6724  DCZ  @STLN
+       BS   TOPL05
+       DCH  @RAMTOP,@STLN
+       BS   TOPL05
+G672E  BR   KILSYM            Kill symbol table with return
+*************************************************************
+*    INSERT A NEW LINE OR REPLACE AN EXISTING LINE          *
+************************************************************* <<<<<<<<<<<<<<<<<<
+* BUILD LINE # AND LINE POINTER IN VARY, +1, +2, +3, +4       <<<<<<<<<<<<<<<<<<
+INSREP DST  @FAC,@VARY        2 bytes of line #               <<<<<<<<<<<<<<<<<<
+       DST  @ENLN,@VARY2      Last address of line-#-table    <<<<<<<<<<<<<<<<<<
+       DST  @ENLN,@EXTRAM     Prepare to search the line # table <<<<<<<<<<<<<<<
+*************************************************************
+* 1ST LINE IN MEMORY : EDITZ5 -- EDITZ6 -- EDITZ8 -- DONE   *
+*************************************************************
+       DCEQ @ENLN,@STLN       1st text?
+       BS   EDITZ5
+*************************************************************
+* EDITZ3                                                    *
+*    COMPARE LINE # IN FAC WITH LINE # IN THE LINE # TABLE  *
+*    EQUATE : --DELTX--EDITZ8-DONE                          *
+*    HIGHER : HIGHEST LINE? YES : EDITZ6--EDITZ8--DONE      *
+*                           NO  : BACK TO EDITZ3            *
+*    LOWER  : EDITZ4--EDITZ8--DONE                          *
+*************************************************************
+       DINC @EXTRAM           Get line
+EDITZ3 DSUB 4,@EXTRAM         Go to next line in program
+       CALL GRSUB1            Read from ERAM(use GREAD)/VDP
+       BYTE EXTRAM          * @EXTRAM : Source addr on ERAM
+*                              or VDP
+       AND  >7F,@EEE          Reset possible breakpoint
+       DCEQ @EEE,@FAC         If #s match-delete old
+       BS   DELTX
+       DST  4,@VARA           For MEMFUL
+       H                      New line # is greater
+       BR   G675E
+       DCEQ @STLN,@EXTRAM     Line to be inserted got the
+*                              highest line number in line
+*                              # table :: add to the end of
+*                              line-#table
+       BS   EDITZ6
+       BR   EDITZ3
+*************************************************************
+* EDITZ4                                                    *
+*    ALLOCATE SPACE IN LINE # TABLE BY MOVING               *
+*    PART (ARG=4) OF THE LINE # TABLE UP                    *
+*************************************************************
+G675E  DST  4,@ARG
+EDITZ4 DADD @EXTRAM,@ARG
+       DSUB @STLN,@ARG        # of bytes in between
+       DST  @STLN,@VAR9       Copy old start address of line
+       CALL MEMFUL            Check for memory full
+       DADD @STPT,@STLN
+       CZ   @RAMTOP
+       BR   G677E
+       MOVE @ARG,V*VAR9,V*STLN Move line # table
+       BR   G6783
+G677E  DST  @STLN,@VAR0       Destination address for MVUP
+       XML  MVUP              Move the line # table up
+G6783  DST  @ENLN,@VARY2      Set up line ptr in line # entry
+       BR   EDITZ8
+*************************************************************
+* EDITZ5                                                    *
+* EDITZ6                                                    *
+*    SET UP 1ST ENTRY IN LINE # TABLE BY GIVING @VARA=3     *
+*    WHEN INSERT THE HIGHEST LINE :                         *
+*     CONCATENATE LINE # ENTRY TO  LINE # TABLE             *
+*************************************************************
+EDITZ5 DST  >03,@VARA         Subtract >03 from STLN(@>8370)
+*                              to get new start addr of table
+EDITZ6 CALL MEMFUL            Check for memory full
+       DADD @STPT,@STLN       Concatenate line # entry to
+       DST  @STLN,@EXTRAM      table
+*************************************************************
+* EDITZ8                                                    *
+*    UPDATE ENTRY IN LINE # TABLE, PUT TEXT IN -- DONE      *
+*************************************************************
+EDITZ8 EQU  $
+* Update the 4 bytes entry in line # table
+       DINC @VARY2            Point to 1st token (not length)
+       DSUB @STPT,@VARY2      Set up the line pointer for VDP
+       CALL GWSUB             Write a few bytes of data to
+*                              ERAM (use GWRITE) or VDP
+*      @EXTRAM : Destination address on ERAM/VDP
+*      @VARY   : Data
+*      4       : Byte count
+       BYTE EXTRAM,VARY,4
+*************************************************************
+* Now insert the line's text between the line number table  *
+*  and the rest of the program's text                       *
+*************************************************************
+********** GET THE LENGTH OF LINE # TABLE IN @ARG ***********
+       DST  @ENLN,@ARG        Highest addr for line # table
+       DSUB @STLN,@ARG        Total length of line # table
+       DINC @ARG              Add one for extra offset
+****************** MOVE THE LINE # TABLE ********************
+       DST  @STLN,@VAR9       Old start addr of line # table
+       DINC @STPT             Point to next free byte in VDP
+       DSUB @STPT,@STLN       New entry to line # table
+       DSUB @STPT,@ENLN
+       CZ   @RAMTOP           If ERAM not exist
+       BR   G67C0
+       MOVE @ARG,V*VAR9,V*STLN  Move line # table
+       BR   G67C5
+G67C0  DST  @STLN,@VAR0       Set up destination addr for MVUP
+       XML  MVUP              Move line # table
+****************** WRITE THE LENGTH BYTE ********************
+G67C5  DDEC @STPT             Update length of text
+       DDEC @VARY2            Point to the length byte
+       CALL GWSUB             Write a few bytes of data
+*                              to ERAM (use GWRITE) or VDP
+*      @VAR2      : Destination address on ERAM or VDP
+*      @(STPT+1)  : Data
+*      1          : Byte count
+       BYTE VARY2,STPT+1,1
+       DINC @VARY2
+********************* WRITE THE TEXT ************************
+       CZ   @RAMTOP           If ERAM not exist
+       BR   G67DE
+       MOVE @STPT,V@CRNBUF,V*VARY2 Move text
+       BR   G67EA
+G67DE  DST  CRNBUF,@AAA       Copy the text from crunch
+*                         buffer (which is on VDP) to ERAM
+       DST  @VARY2,@BBB
+       DST  @STPT,@CCC        @CCC : Byte count
+       XML  VGWITE
+G67EA  BR   KILSYM            Kill symbol table and return
+*************************************************************
+* REPLACE AN EXISTING LINE
+************** Compute length of old entry ******************
+DELTX  DINCT @EXTRAM          Point to the line pointer
+       CALL GRSUB1            Read from ERAM (use GREAD)/VDP
+       BYTE EXTRAM          * @EXTRAM : Source addr on ERAM/VDP
+       DDECT @EXTRAM          Restore back
+       DDEC  @EEE             Point to the length byte
+       CALL GRSUB1            Read the length from ERAM/VDP
+       BYTE EEE             * @EEE : Source addr on ERAM/VDP
+       ST   @EEE,@VARA+1
+       CLR  @VARA             Make a double byte
+       DNEG @VARA             And get length difference
+       CALL MEMFUL            Check for memory full
+       DADD @VARA,@STLN       Update STLN
+       XML  DELREP            Remove old text (same line #)
+       DDECT @EXTRAM          Correct pointer
+******* SET UP THE LINE POINTER IN LINE # ENTRY *************
+       DST  @ENLN,@VARY2      Prepare setting up line pointer
+       BR   EDITZ8            Go update entry in line # table
+*                              and put text in
+*************************************************************
+* SUBROUTINE TO READ 2 BYTES OF DATA FROM VDP OR ERAM       *
+*  (use GREAD)                                              *
+*************************************************************
+GRSUB1 FETCH @FFF             Fetch the source addr on ERAM
+       DST  *FFF,@DDD         Put it in @DDD
+       CZ   @RAMTOP           If ERAM present
+       BS   G6823
+       DST  2,@FFF            @FFF : Byte count
+       XML  GREAD             Read data from ERAM
+*                             @EEE : Destination addr on CPU
+       BR   G6827             ERAM not exists
+G6823  DST  V*DDD,@EEE        Read data from VDP
+G6827  RTN
+*************************************************************
+* SUBROUTINE TO WRITE A FEW BYTES OF DATA TO VDP OR ERAM    *
+*  (use GWRITE)                                             *
+*************************************************************
+GWSUB  FETCH @AAA             Fetch the destination addr on
+       DST  *AAA,@AAA         ERAM/VDP
+       FETCH @BBB+1           Fetch the source addr on CPU
+*                              where data is stored
+       CLR  @BBB              Make a double byte
+       FETCH @CCC+1           Fetch the byte count
+       CLR  @CCC              Make a double byte
+       CZ   @RAMTOP           If ERAM exists
+       BS   G683E
+       XML  GWRITE            Write the data to ERAM
+       RTN
+G683E  MOVE @CCC,*BBB+1,V*AAA Write to VDP
+       RTN
+*************************************************************
+* SUBROUTINE TO GET A NON-BLANK CHARACTER FROM LINE         *
+*************************************************************
+GETNB  CALL GETCHR            Get a character
+       BS   RTNSET            If end-of-line
+GETNB2 CEQ  >20,@CHAT
+       BS   GETNB
+       RTN
+*************************************************************
+* SUBROUTNE TO GET A CHARACTER FROM LINE                    *
+*************************************************************
+GETCHR DCH  @VARA,@VARW
+       BS   RTNSET
+       ST   V*VARW,@CHAT      Put character in @CHAT
+       CEQ  >7F,@CHAT         If not edge character
+       BS   G6864
+       SUB  OFFSET,@CHAT   >60 Screen character into ASCII
+       DINC @VARW
+       RTN
+G6864  DADD 4,@VARW           Skip to next line
+       BR   GETCHR
+*  Jump always
+*************************************************************
+* GETLN - Gets an line number after a command and puts it   *
+* into the FAC. If the character in CHAT when it is called  *
+* is not in the legal numeric range (0-9) then GETLN        *
+* GETLN returns with no other action.                       *
+*  Called by: AUTON, RUN, EDITLN                            *
+*************************************************************
+GETLN  DCLR @FAC              Assume no number
+       CLR  @BYTES            Assume no digits
+GETLN2 SUB  >30,@CHAT         ASCII to normal range
+       CHE  10,@CHAT          If numeric digit
+       BS   G6891
+       DMUL 10,@FAC           Multiply by 10
+       DCZ  @FAC              Error if overflow
+       BR   GTLNER
+       ST   @CHAT,@FAC1       Need to add in this digit
+       DADD @FAC2,@FAC        Add accumulator into last digit
+       DCGE 0,@FAC            Error if overflow
+       BR   GTLNER
+       INC  @BYTES            Got another digit
+       CALL GETCHR            Get the next character
+       BR   GETLN2            If not EOS
+G6891  CZ   @BYTES            If digits gotten
+       BS   G6899
+       DCZ  @FAC              If hit natural zero
+       BS   GTLNER
+G6899  ADD  >30,@CHAT         Put back into ASCII
+       RTN
+GTLNER XML  SCROLL            Scroll the screen
+       CLR  @PRGFLG           Don't print a line number
+       BR   ERRBLN            * BAD LINE NUMBER
+MEMFUL DADD @STPT,@VARA       Total # of bytes to be added
+       DSUB @VARA,@STLN       New STLN
+       CZ   @RAMTOP
+       BS   G68B5
+       DCHE CPUBAS,@STLN      Not enough memory
+       BR   MEMZ1
+       RTN
+G68B5  DCHE VRAMVS+64+256,@STLN Memory full
+       BS   G68C2
+MEMZ1  DADD @VARA,@STLN       Back to old start line # table
+       CALL G6A84
+       BYTE 11                * MEMORY FULL
+G68C2  RTN
+* Initialize program space
+INITPG CLR  @RAMFLG           Reset RAMFLG
+       XML  GDTECT            Search for ERAM & select ROM
+       DST  @RAMTOP,@RAMFRE   Initialize free pointer
+       DST  @>8370,@STLN      Assume VDP - initialize STLN
+       CZ   @RAMTOP           If ERAM is present
+       BS   G68D9
+       DST  @RAMTOP,@STLN     Initialize STLN for ERAM
+G68D9  DST  @STLN,@ENLN       Init ENLN based upon STLN
+* Kill the symbol table
+KILSYM DST  @STLN,@FREPTR     Assume VDP and init free pointer
+       DCEQ @>8370,@FREPTR
+       BS   G68E6
+       DDEC @FREPTR           Back off 1 if program present
+G68E6  CZ   @RAMTOP           If ERAM exists
+       BS   G68FC
+       DST  @STLN,@RAMFRE     Update the @RAMFRE
+       DCEQ @RAMTOP,@RAMFRE
+       BS   G68F9
+       DDEC @RAMFRE           Back off 1 it program present
+G68F9  DST  @>8370,@FREPTR    Initialize VDP free pointer
+G68FC  DCLR @SYMTAB           Kill symbol table
+       DCLR @SUBTAB           Kill subprogram table
+       DST  @FREPTR,@STRSP    Initialize string space
+       DST  @STRSP,@STREND
+       CLR  @BASE             Reset OPTION BASE to 0
+       DCLR V@SEXTRM          Disallow CONTINUE
+       DST  VRAMVS,@STVSPT    Initialize base of value stack
+       DST  @STVSPT,@VSPTR    Initialize value stack pointer
+       DST  @VSPTR,V@SAVEVP   Initialize pointer in VDP too
+       RTN
+*************************************************************
+* Data for the color tables (starts at >0800)               *
+* BYTE >D0,>00,>00,>00,>00,>00,>00,>00                      *
+* BYTE >00,>00,>00,>00,>00,>00,>00,>10                      *
+* BYTE >10,>10,>10,>10,>10,>10,>10,>10                      *
+* BYTE >10,>10,>10,>10,>10,>10,>10,>10                      *
+*************************************************************
+CHRTA2 ALL  >20+OFFSET        Clear the screen
+       DST  >3567,@>83C0      Initialize random number gen
+       MOVE 16,G@SPCCHR,V@>03F0 Cursor character
+CHRTAB DST  >0400,@FAC        Address of chracater tables
+       CALL CHAR2Z            Load the character set
+       CEQ  >01,V@CONFLG      99/4A console?
+       BR   G6939             NO
+       DST  >0600,@FAC        Load the lowercase char set
+       CALL CHAR3Z
+G6939  BACK 7                 Border color = CYAN
+       CLR  V@>0800
+       MOVE 14,V@>0800,V@>0801
+       ST   >10,V@>080F       Black fore/transparent back
+       MOVE 16,V@>080F,V@>0810
+       CALL SPRINT
+* This part might be moved up later, load special characters
+* here. Don't load before hiding all sprites.
+       MOVE 6,G@VDPREG,#1
+       RTN
+*
+****** Initialization of sprites. Enable 28 sprites. ********
+*
+SPRINT CLR  V@>0780           Clear motion of all sprites
+       MOVE >6F,V@>0780,V@>0781
+* Replace the line for speeding up XB. 5/22/81
+*      ST   28,@MOTION        All in motion
+       CLR  @MOTION           All not in motion
+       ST   >D0,V@>0370       Sprites 29 to 32 unavailiable
+       DST  >C000,V@>0300     Hide the first sprites
+       DCLR V@>0302           Make first sprite transparent
+       MOVE 108,V@>0300,V@>0304 Ripple for the rest
+       RTN
+*
+* ERROR messages in this file
+*
+ERRSY1 CLR  @PRGFLG           Without a line number
+ERRSYN CALL G6A84
+       BYTE 3                 * SYNTAX ERROR
+ERRNQS XML  SCROLL            Scroll up the screen
+       CALL G6A84             EOL before end of string
+       BYTE 5                 * UNMATCHED QUOTES message
+ERRNTL CLR  @PRGFLG           Don't print a line #
+       CALL G6A84
+       BYTE 6                 * NAME TOO LONG
+ERRLNF CALL G6A84
+       BYTE 22                * LINE NOT FOUND
+ERRBLN CALL G6A84
+       BYTE 23                * BAD LINE NUMBER
+ERRLTL CLR  @PRGFLG           Don't print line number
+       CALL G6A84             Issue the error
+       BYTE 24                * LINE TOO LONG
+ERRCIP XML  SCROLL            Scrolling the screen
+       CALL G6A84
+       BYTE 26                * COMMAND ILLEGAL IN PROGRAM
+ERRPV  CALL G6A84
+       BYTE 39                * PROTECTION VIOLATION
+ERRIVN CLR  @PRGFLG           Don't print line number
+       CALL G6A84
+       BYTE 40                * UNRECOGNIZED CHARACTER
+*
+* Other ERROR messages in the program
+*
+* ERRRDY    * READY                BYTE 0
+* ERRMEM    * MEMORY FULL          BYTE 11
+* ERRCC     * CAN'T CONTINUE       BYTE 25
+* WRNNPP    * NO PROGRAM PRESENT   BYTE 29
+ 
+ 

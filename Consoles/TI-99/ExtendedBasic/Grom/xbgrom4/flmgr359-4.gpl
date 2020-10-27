@@ -1,0 +1,283 @@
+ 
+ 
+*************************************************************
+*                   ACCEPT STATEMENT                        *
+* Accept input anywhere on the screen. The total number of  *
+* input variables is limited to one. On an ACCEPT AT( , ),  *
+* the maximum number that can be accepted is up to the right*
+* margin!!!! If SIZE() is used, the maximum number is       *
+* limited to the given SIZE, or to the number of characters *
+* remaining on the line, whichever is the lesser.           *
+*************************************************************
+ACCEPT CLR  V@ACCTRY          Clear "try again" flag
+       CALL DISACC            Use common code for DISPLAY/ACCEPT
+       BS   ERRSYN             COND set means end of statement
+       ST   >FF,@ARG7         Assume we don't have VALIDATE
+************ VALIDATE OPTION HANDLING ***********************
+       CEQ  VALIDZ,@CHAT      Detected VALIDATE option
+       BR   G89FD
+       XML  PGMCHR            Next character should start option
+       CEQ  LPARZ,@CHAT       "* SYNTAX ERROR *"
+       BR   ERRSYN
+       OR   >40,@PABPTR       Indicate usage of validate clause
+       DST  1,@VARA           Use VARA as length of option string
+       DCLR @VARW             VARW= options used, VARW+1=#0
+*                              stack entries for strings
+G898B  XML  PGMCHR            Skip separator token
+       CHE  NUMERZ,@CHAT      Could be valid option
+       BR   G89AA
+       CHE  UALPHZ+1,@CHAT    It is ....
+       BS   G89AA
+       ST   1,@ARG            Select bit 0 as number option
+       SUB  NUMERZ,@CHAT      Create correct offset
+       BS   SETVW             Skip the shift stat.
+       SLL  @CHAT,@ARG        Then select whatever option we set
+SETVW  OR   @ARG,@VARW        Remember options in VARW
+*                              stack entries for strings
+       XML  PGMCHR            Get next token
+       B    VLIDZ0            Must use a long branch here
+G89AA  XML  PARSE             Try to decode a string expression
+       BYTE RPARZ
+       CEQ  STRVAL,@FAC2      String-number mismatch
+       BR   ERRSNM
+       CZ   @FAC7             Only count non-null strings
+       BS   VLIDZ0
+       ADD  @FAC7,@VARA+1     Now watch out for overflow
+       CARRY                  Sting truncated
+       BR   G89C0
+       CALL ERRZZ             * STRING TRUNCATED ERROR *
+       BYTE 19
+G89C0  XML  VPUSH             Push the result for future recall
+       INC  @VARW+1           Count number of entries on stack
+VLIDZ0 CEQ  COMMAZ,@CHAT      Evaluate all fields
+       BS   G898B
+       XML  SPEED
+       BYTE SYNCHK          * Check for ")" on end
+       BYTE RPARZ           * If not, "* SYNTAX ERROR *"
+       CALL DISPZ1            Try to evaluate further option
+       BS   ERRSYN            Premature end of statement
+       DST  @VARA,@BYTES      Allocate string for character
+       XML  GETSTR
+       DST  @SREF,@ARG        Get start of allocated string
+       ST   @VARW,V*ARG       Get start of allocated string
+       DINC @ARG              Leave room form standard option
+G89E0  CZ   @VARW+1           Copy all available information
+       BS   G89F3
+       XML  VPOP              Regain stack-entry
+       MOVE @FAC6,V*FAC4,V*ARG Copy string
+       DADD @FAC6,@ARG        Update destination address
+       DEC  @VARW+1           Count # of stack entries
+       BR   G89E0
+G89F3  DST  @SREF,V@VALIDP    Copy start address of string
+       DST  @VARA,V@VALIDL     and total string length
+       CLR  @ARG7             Indicate VALIDATE usage of READLN
+G89FD  DST  @CCPADR,@VARW     Save start address of the field
+       DST  @VARW,@VARA       Set default highest address used
+       DST  @CCPADR,@ARG2     Select absolute highest usable location
+       DADD 290,@ARG2         290=2+32*9 maximum of 254 characters
+       CH   >FC,@VARA+1       Start at the end of line
+       BR   G8A13
+       DADD 4,@ARG2
+G8A13  CZ   @PABPTR           We used some options like AT, SIZE
+       BS   G8A66
+       XML  SPEED
+       BYTE SYNCHK          * Should always end on ":"
+       BYTE COLONZ
+       CLOG >02,@PABPTR       Used BEEP clause
+       BS   G8A23
+       CALL TONE1             Wake up the user
+G8A23  CLOG >04,@PABPTR       Used AT option, SIZE!!!
+       BS   G8A35
+       CLOG >08,@PABPTR       Use defualt SIZE option
+       BR   G8A33
+       ST   VWIDTH,@PABPTR+1  Limit current record length
+       CALL SIZE1
+G8A33  BR   ACCPZ1
+G8A35  CLOG >08,@PABPTR       SIZE option used somewhere
+       BS   G8A66
+* We're sure now that SIZE has been used WITHOUT the AT
+* option, this means that we should set XPT to point behind
+* the SIZE field. This can be done by adding the record
+* length to the current screen base address and the line's
+* screen base address
+       ST   @CCPADR+1,@XPT    Start of with current address
+       ADD  @RECLEN,@XPT      Add in the current record length
+       SUB  >DF,@XPT          And subtract the lower base address
+*                             Also adjust for edge character
+       ST   @XPT,V@SIZXPT     Save it for "try again" case because
+*                              in WARNING, XPT gets changed
+ACCPZ1 DST  @CCPADR,V@SIZCCP  Save for "try again" case
+       ST   @RECLEN,V@SIZREC  Save for "try again" case
+*************************************************************
+* ENTRY POINT FOR "TRY AGAIN" CASE WHEN SIZE OR ACCEPT USED *
+*************************************************************
+ACCPZ9 CLOG >80,@PABPTR       Blank current field
+       BR   G8A58
+       ST   SPACE+OFFSET,V*CCPADR
+G8A58  DINC @CCPADR           Update screen address
+       DEC  @RECLEN           Reduce count, always at least on
+       BR   ACCPZ9            Loop until at end of field
+       DDEC @CCPADR           Fix end of field for maximum size
+       DST  @CCPADR,@VARA     Set highest location available
+       DST  @VARA,@ARG2       Also highest location available
+*                              OK all set to go
+G8A66  CEQ  1,V@ACCTRY        Skip if in "try again"
+       BS   ACCPZ7
+       DST  @VSPTR,@VAR4      Save first entry in V-stack
+       CALL BUG01             Collect the symbol designator
+* Above call fixes bug.       Take care of arrays too
+       XML  VPUSH             Save symbol table entry
+ACCPZ7 DST  @VARW,V@ACCVRW    Save for trying again case
+       DST  @VARA,V@ACCVRA    Save for trying again case
+******************************************************************
+* ENTRY POINT FOR "TRY AGAIN" WHEN NEITHER SIZE OR ACCEPT IS USED*
+******************************************************************
+* In case a CALL CLEAR or ERASE ALL or CALL HCHAR has just been
+* processed, EDGE CHARS, are gone at the bottom line
+ACCPZ5 CLOG >0C,@PABPTR       If AT/SIZE used, maximum field
+       BR   AZ1                is line, so no need to worry
+*                              about it
+       DST  >7F7F,V@>02FE     Put the EDGE CHAR back
+AZ1    DEX  @VSPTR,@VAR4      Don't destroy V-stack on BREAK
+       CALL READL1            Ask for some input that can be
+*                             used
+       DEX  @VSPTR,@VAR4      Resote V-stack pointer
+* At this point, VARA contains the highest location used,
+* and VARW contains the string's start address
+ACCPZ2 DCEQ @VARW,@VARA       Only non-empty string
+       BS   G8A9E
+       DDEC @VARA             Go to the next position
+       CEQ  SPACE+OFFSET,V*VARA
+       BS   ACCPZ2
+       DINC @VARA             Back to the last space
+G8A9E  XML  VPOP              Check the symbol designator is
+       XML  VPUSH             a string or numeric variable
+       CEQ  >65,@FAC2         If numeric : empty string is not
+       BS   G8AB2
+       DCEQ @VARA,@VARW       If an empty string was entered
+       BR   G8AB2
+       CALL WARNZZ            *** INPUT ERROR ***
+       BYTE 32
+       BR   ACCPZ8
+G8AB2  DCLR @BYTES            Compute length of input string
+       DST  @VARW,@SREF       Use SREF as temporary variable
+G8AB7  DCEQ @VARA,@SREF
+       BS   G8AC8
+       CEQ  EDGECH,V*SREF     Exclude edge character
+       BS   G8AC4
+       DINC @BYTES
+G8AC4  DINC @SREF             Decrement the counter
+       BR   G8AB7
+G8AC8  CALL CTSTR0            Create a temporary string
+ACCPZ3 DCEQ @VARA,@VARW
+       BS   G8AEB
+       CEQ  EDGECH,V*VARW     Skip the edge character
+       BR   G8ADC
+       DADD 4,@VARW
+       BR   ACCPZ3
+G8ADC  ST   V*VARW,V*SREF     Copy the string
+       SUB  OFFSET,V*SREF     Subtract the screen offset
+       DINC @VARW             Update pointers
+       DINC @SREF
+       BR   ACCPZ3            Result can't be 0
+G8AEB  CEQ  STRVAL,@FAC2      Numerical variable
+       BS   ACCPZ6
+       ST   STRVAL,@FAC2      Create temp string
+       CALL VALCD             Use VAL code for translation
+       BR   ACCPZ6            No error - ok go on
+WRNSNM CALL WARNZZ            Error
+       BYTE 7               * STRING NUMBER MISMATCH
+ACCPZ8 CLOG >08,@PABPTR       If SIZE is used
+       BS   G8B0A
+       CLOG >04,@PABPTR       Also AT is not used
+       BR   G8B0A
+       ST   V@SIZXPT,@XPT     Restore XPT : in WARNING XPT
+G8B0A  DST  V@ACCVRW,@VARW    Restore @VARA, @VARW
+       DST  V@ACCVRA,@VARA
+       ST   1,V@ACCTRY        Set the "try again" flag
+       CLOG >08,@PABPTR       If SIZE is not used
+       BR   G8B20
+* IF ACCEPT ALSO NOT USED. GOTO "TRY AGAIN" FORM HERE
+       CLOG >04,@PABPTR
+       BS   ACCPZ5
+* IF "EITHER SIZE OR ACCEPT IS USED" THEN
+G8B20  DST  V@SIZCCP,@CCPADR  Restore CCPADR
+       ST   V@SIZREC,@RECLEN  Restore RECLEN
+       BR   ACCPZ9            Go blanking the field and
+*                              "try again"
+ACCPZ6 XML  ASSGNV            Should be ok now
+       CLOG >0C,@PABPTR       Test usage of AT and/or SIZE
+       BR   ACCPZ4            At least one of the two used
+       XML  SCROLL            Scroll the screen up
+       ST   3,@XPT            And reset XPT
+ACCPZ4 XML  CONT
+*************************************************************
+*                  READ STATEMENT                           *
+* Assign DATA values to variables in READ-list one at a     *
+* time. Possibly search for new DATA statements if the      *
+* current DATA statement has been used. Be careful with     *
+* null entries...!!!                                        *
+*************************************************************
+G8B38  XML  PGMCHR            Get character following ","
+READ   CALL BUG01             Get pointers and correct entries
+* Above call fixes bug.        also allow for array variables
+       XML  VPUSH             Push on Vstack for assignment
+       CZ   @DATA             DATA ERROR
+       BS   ERRDAT
+       CALL GETGFL            Get next data item (RAM/GROM)
+       CEQ  STRVAL,@FAC2
+       BS   G8B6B
+       CEQ  NUMZ,@VAR0+1      Not a numeric
+       BR   ERRSNM
+*                              string-number mismatch error
+       CALL CHKSZ0            Build up string info
+       DINC @FAC6             Force legal delimiter on end
+       CALL LITS05            Copy numeric into string space
+       DST  @SREF,@FAC12      Copy string start address
+       DADD @FAC6,@SREF       Compute end address of string
+       DDEC @SREF             Back up over delimiter
+       CALL CONVER            Convert string to number
+       DCEQ @SREF,V@CSNTMP    WRONG!!!!!!!
+       BR   ERRDAT
+       BR   G8B73
+G8B6B  CALL CHKSTR            Check string input
+       BS   ERRDAT            Give error on error
+       CALL LITS05            Allocate string in string space
+G8B73  XML  ASSGNV            Assign variable
+       CALL GETGFL            Get next datum from DATA stmt
+       CEQ  COMMAZ,@VAR0+1    Has to be an end of DATA
+       BS   G8B8F
+       CZ   @VAR0+1           Check for end of data
+       BR   ERRDAT
+       DDECT @LNBUF           Pointer to line # of DATA stmt
+       CLR  @DATA             Assume the worst - no more DATAs
+       DCEQ @STLN,@LNBUF
+       BS   G8B8F
+       DDEC @LNBUF            Next line's 1st token address
+       CALL DATAST            Get next DATA statement
+G8B8F  CEQ  COMMAZ,@CHAT      Worry about junk in CONT
+       BS   G8B38
+       XML  CONT
+* SRDATA-Search for DATA statements (DATA statement must
+* be the only statement on one line)
+* SEARCH-also used for searching IMAGE statement.
+SRDATA ST   DATAZ,@FAC2       Search for a DATA token
+SEARCH DEX  @DATA,@PGMPTR     Exchange with normal PC
+       EX   @CHAT,@VAR0+1     Preserve current PGM character
+       CZ   @PRGFLG           If imperative statement
+       BR   G8BB3
+       CZ   @RAMTOP           With ERAM : text itself in ERAM
+       BS   G8BB3
+       ST   >FF,@RAMFLG       Fake RAMFLG in this case
+       XML  PGMCHR            Get first character on the line
+       CLR  @RAMFLG           Restore it back
+       BR   SRDAZ1            Skip that PGMCHR
+G8BB3  XML  PGMCHR            Get first character on the line
+SRDAZ1 CEQ  @FAC2,@CHAT       Search for specific token
+       BS   SRDAZ0
+       CEQ  @>8300,@>8300     Set COND if no DATA found
+SRDAZ0 DEX  @DATA,@PGMPTR     Exchange won't affect the COND
+       EX   @CHAT,@VAR0+1     Situation ok
+       RTNC                   Return to caller with COND
+ 
+ 

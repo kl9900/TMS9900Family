@@ -1,0 +1,431 @@
+ 
+ 
+*************************************************************
+* ASSEMBLY LANGUAGE SUPPORT FOR 99/4                        *
+*                                                           *
+* LOAD, INIT, PEEK, LINK, CHARPAT      JDH  08/21/80        *
+*************************************************************
+* FORMAT FOR LOAD:                                          *
+*  CALL LOAD open load-directive (comma load-directive)     *
+*            close                                          *
+*    load-directive = file-name / address (comma data)      *
+*                     (null / file-name)                    *
+*    file-name      = string-expression                     *
+*    address        = numeric-expression                    *
+*    data           = numeric-expression                    *
+*                                                           *
+*  FILE TYPE = FIXED 80, DISPLAY , SEQUENTIAL FILE          *
+*                                                           *
+* FUNCTION:                                                 *
+*  LOADS ASSEMBLY LANGUAGE CODE INTO EXPANSION RAM          *
+*  ADDRESSES: >2000 - >>3FFF RELOCATING                     *
+*  RELOCATABLE CODE INTO AVAILABLE MEMORY, ABSOLUTE CODE    *
+*  IS LOADED                                                *
+*  INTO ITS ABSOLUTE ADDRESS, ENTRY POINTS ARE DEFINED BY   *
+*  'DEF' STATEMENTS, AND ARE LOADED INTO HIGH END OF ERAM   *
+*                                                           *
+*  RELOACATABLE OR ABSOLUTE CODE MAY BE STORED ON A FILE    *
+*  9900 OBJECT CODE FORMAT.                                 *
+*   VALID TAGS = 0, 5, 6, 7, 9, A, B, C, F,:                *
+*         TAGS 1, 2, I, M, ARE IGNORED                      *
+*  THE SYMT OPTION IS NOT SUPPORTED.                        *
+*  ABSOLUTE CODE MAY BE LOADED DIRECTLY FROM PROGRAM        *
+*  BY SPECIFYING AN ADDRESS INSTEAD OF A FILE NAME,         *
+*  FOLLOWED BY THE DATA TO BE LOADED (WHICH IS PUT IN THE   *
+*   RANGE 0 to 255                                          *
+*  THE RANGE OF THE ADDRESS OR DATA IS LIMITED TO           *
+*   32767 to -32768                                         *
+*  MULTIPLE DIRECT LOADS CAN BE IN THE SAME LOAD COMMAND    *
+*  PROVIDED THEY ARE SEPARATED BY EITHER A FILENAME OR A    *
+*   NULL STRING.                                            *
+*                                                           *
+*  MVUP WAS USED TO TRANSFER DATA FROM CPU RAM TO ERAM      *
+*  SINCE IT WAS NOT KNOWN AT FIRST THAT THE MOVE            *
+*  INSTRUCTION COULD TRANSFER FROM CPU RAM TO ERAM          *
+*   (PROVIDED THAT >8300 IS SUBTRACTED FROM THE ADDRESSES)  *
+*************************************************************
+******************* LINKAGE AND HEADER **********************
+       BYTE >AA
+       BYTE 0,0,0
+       BYTE 0,0,0,0,0,0
+       DATA 0
+       BYTE 0,0,0,0
+LINK1  DATA LINK2
+       STRI 'LINK'
+       DATA LINKIT
+LINK2  DATA LINK3
+       STRI 'LOAD'
+       DATA LOAD
+LINK3  DATA LINK4
+       STRI 'INIT'
+       DATA INIT
+LINK4  DATA LINK5
+       STRI 'PEEK'
+       DATA PEEK
+LINK5  DATA 0
+       STRI 'CHARPAT'
+       DATA GETCHR
+* LOAD - LDP1 - LDP4 - LDP5
+** CHKSUM is also used as a flag to test if a file has been
+** opened (so that it gets closed)
+** it is initialized to >0001 and will be changed to some
+** other value if a file is used
+LOAD   DST  >0001,@CHKSUM     {INITIALIZE FILE FLAG}
+       CALL CHKIN             {CHECK IF INIT HAS BEEN CALLED}
+       CEQ  LPARZ,@CHAT       SYNTAX ERROR if no "("
+       BR   ERRSY1
+       XML  PGMCHR            Skip over
+* MAIN PARESE LOOP *
+* Check for file-name or address
+LDP1   XML  PARSE                                            <<<<<PARSE<<<<<<<<<
+       BYTE RPARZ           * PARSE up to ")" or ","         <<<<<<<<AND <<<<<<<
+       CEQ  STRING,@FAC2      Process file name              <<<<<<<< DECIDE<<<<
+       BS   LDP2                                             <<<<IF STRING OR<<<
+* Otherwise it is an address
+* Convert address to integer, save in @PC
+       XML  CFI               Convert FAC to integer         <<<<<<NUMBER<<<<<<<
+       CEQ  3,@FAC10          Check for overflow
+       BS   ERRN01
+       DST  @FAC,@PC          Save in ERAM location pointer
+* Check for "," if there then data should folow
+*  else end of load statement, goto LDP5
+LDP4   CEQ  COMMAZ,@CHAT
+       BR   LDP5
+* DATA follows or a STRING if no more data
+       XML  PGMCHR            Skip ","
+       XML  PARSE             Get data value or string if
+*                              end of data
+       BYTE RPARZ           * Parse up to ")" or ","
+       CEQ  STRING,@FAC2      No more data
+       BS   LDP2
+* FAC contains a numeric
+       XML  CFI               FAC to INTEGER
+       CEQ  3,@FAC10          Check for overflow
+       BS   ERRN01
+* Move CPU RAM to ERAM   (MOVE LOW BYTE)
+       DST  FAC+1,@VARB       @FAC+1 to @PC in ERAM
+       DST  @PC,@VAR0         Destination
+       DST  1,@ARG            Move 1 byte
+       XML  MVUP              Move CPU RAM to ERAM
+       DINC @PC               INC ERAM address
+       B    LDP4              Continue with next byte
+* Check for ")"  IF there return ELSE SYNTAX ERROR
+LDP5   CEQ  RPARZ,@CHAT       Return
+       BS   LDRET
+       B    ERRSY1            SYNTAX ERROR
+* LDP2
+* Process file name
+LDP2   CZ   @FAC7             Check for null string
+       BS   LDNE2
+       CALL OPENIT            Open file, file name in FAC
+*************** LOAD DATA INTO ERAM *************************
+* LOAD FRESTA, FREEND from ERAM
+       DST  FSLOC,@VARB           Source
+       DST  FRESTA,@VAR0          Destination
+       DST  4,@ARG                # of bytes to move
+       XML  MVUP                  Load
+* Initialize PC, OFFSET in case of no "0" tag
+       DST  @FRESTA,@PC
+       DST  @FRESTA,@OFFADD   Base address for load module
+* Read in one record, evaluate the TAG field
+* LDRD - LDTG
+LDRD   DST  0,@CHKSUM         Clear check sum
+       CALL READIT            Rear in a record
+LDTG   MOVE 5,V*BUFPNT,@TAG   Get TAG & field
+       CALL LDIPCS            Add 5 to BUFPNT, add ASCII
+       BYTE 5               * Value of chars. Read to checksum
+* Convert @FIELD to numeric (from ASCII hex value)
+* Store result: HIGH BYTE to FIELD, LOW BYTE to FIELD+1
+* Convert HIGH BYTE first: @FIELD & @FIELD+1
+* Store result in field
+       SUB  >30,@FIELD        >30 = "0"
+       CGT  9,@FIELD          Subtract ASCII difference
+*                              between "9" and "A"
+       BR   GC0C7
+       SUB  7,@FIELD
+GC0C7  SLL  4,@FIELD          FIELD=FILED*32
+       SUB  >30,@FIELD+1
+       CGT  9,@FIELD+1
+       BR   GC0D5
+       SUB  7,@FIELD+1
+GC0D5  ADD  @FIELD+1,@FIELD   Add to HIGH BYTE
+* Now convert LOW BYTE: @FIELD+2 & @FIELD+3
+* Store result in LOW BYTE of FIELD to FIELD+1
+       SUB  >30,@FIELD+2
+       CGT  9,@FIELD+2
+       BR   GC0E3
+       SUB  7,@FIELD+2
+GC0E3  ST   @FIELD+2,@FIELD+1 Store in LOW byte of result
+       SLL  4,@FIELD+1        FIELD+1 = FIELD+1*32
+       SUB  >30,@FIELD+3
+       CGT  9,@FIELD+3
+       BR   GC0F4
+       SUB  7,@FIELD+3
+GC0F4  ADD  @FIELD+3,@FIELD+1 Add to low byte
+* Branch to evaluation procedure for TAG
+       SUB  >30,@TAG          >30 = "0"
+       CGE  0,@TAG            If TAG < "0" ILLEGAL CHAR
+       BR   ERRUC1
+       CGT  >0A,@TAG          TAGS "0" to ":"
+       BS   GC11C
+       CASE @TAG
+       BR   TAG0              "0" RELOCATABLE LENGTH
+       BR   LDTG              IGNORE "1" TAG
+       BR   LDTG              IGNORE "2" TAG
+       BR   ERRUC1            No external REF "3"
+       BR   ERRUC1            No external REF "4"
+       BR   TAG5              "5" relocatable entry DEF
+       BR   TAG6              "6" Absolute entry    DEF
+       BR   TAG7              "7" check sum
+       BR   LDTG              "8" ignore check sum
+       BR   TAG9              "9" Absolute LOAD address
+       BR   LDDNE             ":" end of file
+GC11C  SUB  >11,@TAG          Subtract offset so
+*                              that "A" is =0
+       CGE  0,@TAG            ";" to "@" illegal char
+       BR   ERRUC1
+* Skip over "I" tag - 8 char, program ID that follows
+       CEQ  8,@TAG
+       BS   LDTG2
+* Skip over "M" TAG -10 char, program ID that follows
+       CEQ  12,@TAG
+       BR   LDTG3
+       CALL LDIPCS
+       BYTE 10
+       B    LDTG
+LDTG3  CGT  5,@TAG            TAGS "G" are legal             <<<<<<<<<<<<<<<<<<<
+       BS   ERRUC1                                           <<<<<<<<<<<<<<<<<<<
+       CASE @TAG                                             <<<<<<<<<<<<<<<<<<<
+       BR   TAGA              "A" RELOCATABLE PROGRAM ADDRESS<<<<<<<<<<<<<<<<<<<
+       BR   TAGB              "B" ABSOLUTE VALUE             <<<<<<<<<<<<<<<<<<<
+       BR   TAGC              "C" RELATIVE ADDRESS           <<<<<<<<<<<<<<<<<<<
+       BR   ERRUC1            "D" ERROR                      <<<<<<<<<<<<<<<<<<<
+       BR   ERRUC1            "E" ERROR - UNDEFINED          <<<<<<<<<<<<<<<<<<<
+       BR   LDRD              "F" END OF RECORD              <<<<<<<<<<<<<<<<<<<
+* TAG0 to TAGB
+* EVALUATE TAG FIELDS
+TAG0   DST  @FRESTA,@OFFADD   NEW BASE ADDRESS
+       DST  @FRESTA,@PC       NEW PC
+       DADD @FIELD,@FRESTA    ADD LENGTH TO FIND END OF
+*                              RELOCATABLE PROGRAM WHICH IS
+*                              START OF NEXT PROGRAM
+* Make sure we won't run into routine name table now, so we
+*  don't have to check every time we load a value into ERAM
+*  routine table must make sure it doesn't run into
+*  relocatable assembly language code through.
+       DCHE @FREEND,@FRESTA   OUT OF MEMORY
+       BS   ERRMF1
+* SKIP OVER PROGRAM ID - 8 BYTES
+LDTG2  CALL LDIPCS
+       BYTE 8               * INC BUFPNT, COMPUTE CHECKSUM
+       B    LDTG
+TAG5   DADD @OFFADD,@FIELD    Add starting offset
+* TAG6 is an absolute address so do not need to add offset
+TAG6   MOVE 6,V*BUFPNT,@INDEX    Get symbol name
+       CALL LDIPCS            INC BUPNT, COMPUT CHECKSUM
+       BYTE 6              *  We read 6 chars
+* Add symbol and its address - stopped in field - to the
+*  routine entry table. It is put at the end of the table
+*  (the end of the table is towards the low end of memory)
+*  Since the table is searched from the end first, if there
+*  are any duplicate labels the last one entered will have
+*  precedence over the early one(s).
+       DDECT @FREEND          Set to address field
+* Load address (stored in field in CPU RAM) into routine
+*  Name table which is in expansion RAM
+       DST  FIELD,@VARB        Source
+       DST  @FREEND,@VAR0      Destination
+       DST  2,@ARG             # bytes to move
+       XML  MVUP              CPUR RAM to ERAM
+* Load symbol into routine name table
+       DSUB 6,@FREEND         Set to symbol field
+       DST  INDEX,@VARB         Source
+       DST  @FREEND,@VAR0       Destination
+       DST  6,@ARG              Move 6 bytes
+       XML  MVUP              CPU RAM to ERAM
+* Check to see if we've run into assembly language code
+       DCHE @FREEND,@FRESTA   Out of memory
+       BS   ERRMF1
+       B    LDTG              If not then continue
+*************************************************************
+* ROUTINE NAME TABLE ENTRY                                  *
+*                                                           *
+*                     0   1   2   3   4   5   6  7          *
+*                   -----------------------------------     *
+*        FREEND     | S | Y | M | B | O | L | ADDRESS |     *
+*    (AFTER ENTRY)  -----------------------------------     *
+*        FREEND     |   |   |   |   |   |   |         |     *
+*    (BEFORE ENTRY) -----------------------------------     *
+*                                                           *
+*  FREEND is initialized to >4000 by INIT, address is at    *
+*   a higher memory location then symbol                    *
+*************************************************************
+TAG7   DNEG @FIELD            Checksum is 1's compelement
+       DCEQ @FIELD,@CHKSUM    Check sum error
+       BR   ERRDE1
+       B    LDTG
+TAGA   DADD @OFFADD,@FIELD    PC = OFFADD ^ FIELD
+* TAG 9 is an absolute address so no need to add offset
+TAG9   DST  @FIELD,@PC
+       B    LDTG
+TAGC   DADD @OFFADD,@FIELD
+* TAG B is an absolute entry so no need to add offset
+* Relocatable code is checked to see if it will run into
+*  is no need to check now. Absolute code can go anywhere.
+*
+* Load field into expansion RAM using MVUP routine
+TAGB   DST  @PC,@VAR0           Destination
+       DST  FIELD,@VARB         Source
+       DST  2,@ARG              Move 2 bytes
+       XML  MVUP              CPU RAM to ERAM
+       DINCT @PC              We loaded 2 bytes
+       B    LDTG
+********* END OF LOAD FOR CURRENT FILE *********************
+*
+* FRESTA & FREEND are stored in CPU RAM (>8308)
+* While loading a file into expansion RAM.
+* So if the values of FRESTA or FREEND are to be changed
+* then word locations >8308 and >830A must be changed and
+* not expansion RAM.
+*
+* LDDNE - LDNE2
+*
+*   DONE WITH LOAD
+* Put FRESTA, FREEND back into expansion RAM
+* If FRESTA is odd then make it even
+*  so that the next program starts on an even boundry
+LDDNE  CLOG 1,@FRESTA+1       Low byte odd?
+       BS   GC1C1
+       DINC @FRESTA           Force to next even boundry
+GC1C1  DST  FRESTA,@VARB          Source
+       DST  FSLOC,@VAR0           Destination
+       DST  4,@ARG                Load 4 bytes
+       XML  MVUP              CPU RAM to ERAM
+       CALL CLSIT             Close file
+* Check for end of load command ")"
+LDNE2  CEQ  RPARZ,@CHAT       Check for ")"
+       BS   LDRET
+       CEQ  COMMAZ,@CHAT      Syntax error
+       BR   ERRSY1
+       XML  PGMCHR            Skip comma
+       B    LDP1              Continue in main loop
+*************** LDRET - LDRET2 ******************************
+*
+* Return to calling routine
+LDRET  XML  PGMCHR            Skip over
+* Entry point for INIT
+LDRET2 CALL CHKEND            Check for end of statement
+       BR   ERRSY1            If not end then syntax error
+       CALL RPL               Return to caller
+********************** CHKIN ********************************
+* Check for INIT-FLAG = >AA55
+* MOVE ERAM(INITF) to CPU *FAC
+PAGE   EQU  $
+CHKIN  DST  FAC,@VAR0         Destination
+       DST  INITF,@VARB       Source
+       DST  2,@ARG            2 bytes
+       XML  MVUP              Move it
+       DCEQ >AA55,@FAC        Syntax error
+       BR   ERRSYN
+* No files have been opened so if there is a syntax error
+*  goto ERRSYN!
+       RTN
+*********************** FILE ROUTINES ***********************
+*************************************************************
+* INCREMENT BUFFER POINTER by value after call statement
+* ADD VALUES READ TO CHECKSUM unless the first character
+* is a "7" = >37 , then add only "7" character to checksum
+* (other value is the checksum)
+*
+*************************** LDIPCS **************************
+LDIPCS FETCH @INDEXC          Index = # of bytes read
+       CEQ  >37,V*BUFPNT
+       BR   GC213
+       DADD >0037,@CHKSUM     Add value of "7" to checksum
+       DADD 5,@BUFPNT         1 for "7", 4 for checksum
+       B    GC224
+GC213  ST   V*BUFPNT,@FAC1    Convert to 2 byte value
+       CLR  @FAC              ------------------------------
+       DADD @FAC,@CHKSUM      Add char to checksum
+       DINC @BUFPNT
+       DEC  @INDEXC           Do it index # of times
+       CZ   @INDEXC
+       BR   GC213
+GC224  RTN
+********************** OPENIT *******************************
+OPENIT DST  @FAC6,@BYTES      Store actual spec length
+       DADD PABLEN+80,@BYTES  Add in the PAB length and
+*                              buffer length
+       XML  VPUSH             Push possible temp string
+       XML  GETSTR             and try to allocate space
+       XML  VPOP              Restore original string data
+*
+* THE FOLLOWING VARIABLES CONTAIN IMPORTANT INFO
+*
+*   FAC4, FAC5    Start address of original device specifications
+*   FAC6, FAC7    Length of original device specifications
+*   SREF          Location of PAB in VDP memory
+*   BYTES         Length of entire PAB including specifications
+       MOVE @FAC6,V*FAC4,V@PABLEN(@SREF)
+       CLR  V*SREF               Clear the entire PAB
+       MOVE PABLEN-1,V*SREF,V@1(@SREF)
+       ST   @FAC7,V@NLEN(@SREF)  Copy specifications length
+       ST   >60,V@SCR(@SREF)     Screen offset
+       ST   4,V@FLG(@SREF)       Dis, fix, seq, input
+       DADD @SREF,@FAC6          Calculate the address of
+       DADD PABLEN,@FAC6          the buffer
+       DST  @FAC6,V@BUF(@SREF) Store buffer address in PAB
+       CALL DSRCAL
+       RTN
+*************************************************************
+READIT DST  V@BUF(@SREF),@BUFPNT   INIT buffer pointer
+       ST   2,V*SREF
+       ST   V@LEN(@SREF),V@CHRCNT(@SREF)
+       CALL DSRCAL
+       RTN
+************************* CLSIT *****************************
+CLSIT  ST   1,V*SREF          Prepare to close
+******************** DSRCAL - DSKERR ************************
+DSRCAL DST  @SREF,@FAC12      Compute start address of specifications<<<<<<<<<<<
+       DADD NLEN,@FAC12       Ready to call DSR routine     <<<<<<<<<<<<<<<<<<<<
+       CALL DSR               Call DSR thourgh program link <<<<<<<<<<<<<<<<<<<<
+       BYTE 8               * Type = DSR (8)                <<<<<<<<<<<<<<<<<<<<
+       BS   DSKERR            Couldn't find the DSR         <<<<<<<<<<<<<<<<<<<<
+       CLOG >E0,V@FLG(@SREF)  Set condition bit if no errors<<<<<<<<<<<<<<<<<<<<
+       BR   DSKERR                                          <<<<<<<<<<<<<<<<<<<<
+       RTN                                                  <<<<<<<<<<<<<<<<<<<<
+DSKERR DST  @FREPTR,@PABPTR   Set up dummy PAB              <<<<<<<<<<<<<<<<<<<<
+       DSUB 6,@PABPTR         Make it standard size         <<<<<<<<<<<<<<<<<<<<
+       DST  V*SREF,V@4(@PABPTR) Store error code            <<<<<<<<<<<<<<<<<<
+       CALL CLSNOE              Close File                  <<<<<<<<<<<<<<<<<<<<
+       CALL ERRZZ               Issue I/O error             <<<<<<<<<<<<<<<<<<<<
+       BYTE 36              *                               <<<<<<<<<<<<<<<<<<<<
+********************** CLSNOE *******************************
+* Try to close the current file
+* Ignore any errors from the closing of the file.
+* Since the PAB is not in the normal PAB list
+*  then we have to close the file in the load routine.
+* ERRZZ will close the rest of the files.
+*
+** CLOSE IT ONLY IF IT HAS BEEN OPENED
+CLSNOE DCEQ 1,@CHKSUM         Check file flag               <<<<<<<<<<<<<<<<<<<<
+       BS   GC2B9                                           <<<<<<<<<<<<<<<<<<<<
+       ST   1,V*SREF          Store close file code         <<<<<<<<<<<<<<<<<<<<
+       DST  @SREF,@FAC12      Compute start address of specifications<<<<<<<<<<<
+       DADD NLEN,@FAC12       Ready to CALL DSR             <<<<<<<<<<<<<<<<<<<<
+       CALL DSR               CALL DSR through program link <<<<<<<<<<<<<<<<<<<<
+       BYTE 8               * "8" is type of DSR            <<<<<<<<<<<<<<<<<<<<
+GC2B9  RTN                                                  <<<<<<<<<<<<<<<<<<<<
+*************************************************************
+* INIT                        JDH   9/02/80                 *
+*************************************************************
+* Check if expansion RAM present
+* Load support into expansion RAM from GROM
+INIT   CZ   @RAMTOP           If no ERAM, SYNTAX ERROR
+       BS   ERRSYN
+** Load Assembly header, support routines **
+       MOVE SUPLEN,G@ALCEND,@>2000
+       B    LDRET2
+*************************************************************
+ 
+ 

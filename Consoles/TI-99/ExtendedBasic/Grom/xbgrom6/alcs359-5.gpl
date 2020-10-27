@@ -1,0 +1,155 @@
+ 
+ 
+ 
+ 
+************************************************************* <<<<<<<<<<<<<<<<<<
+* TRACBK - Is used to trace back the error levels through   * <<<<<<<<<<<<<<<<<<
+*          nested function references and subprogram calls. * <<<<<<<<<<<<<<<<<<
+*          It takes care of issuing the trace back info     * <<<<<<<<<<<<<<<<<<
+*          messages in these two cases. It leaves the stack * <<<<<<<<<<<<<<<<<<
+*          unchanged except in the case of a prescan error  * <<<<<<<<<<<<<<<<<<
+*          occurring in an external subprogram. If any      * <<<<<<<<<<<<<<<<<<
+*          messages are issued, it returns with the staus   * <<<<<<<<<<<<<<<<<<
+*          set, else reset.                                 * <<<<<<<<<<<<<<<<<<
+************************************************************* <<<<<<<<<<<<<<<<<<
+TRACBK DST  @VSPTR,@FAC8      Get a temp stack pointer        <<<<<<<<<<<<<<<<<<
+GCE22  DCH  @STVSPT,@FAC8     While not end of stack
+       BR   GCE48
+       CEQ  >68,V@2(@FAC8)    If UDF entry
+       BS   TRAC05
+       CEQ  >70,V@2(@FAC8)    If temp UDF entry
+       BR   GCE3B
+       DSUB 8,@VSPTR          Trash it so DELINK won't
+       BR   TRAC05             mess up the symbol table
+GCE3B  CEQ  >6A,V@2(@FAC8)    If subprogram
+       BS   TRAC50
+       DSUB 8,@FAC8           Goto next entry on stack
+       BR   GCE22
+GCE48  RTN                    If no UDF or subprograms active
+* Trace back UDF reference
+TRAC05 CLR  @FAC12            To cheat on ERPRNT
+       EX   @PRGFLG,@FAC12    Force line # NOT to be printed
+       CEQ  1,@FAC13          If warning message
+       BR   GCE58
+* Place for the message already set in WRNZZ3
+       CALL ERPNT5            Don't restore char set
+       BR   GCE5B
+GCE58  CALL ERPRNT            Print the real error messgae
+GCE5B  ST   @FAC12,@PRGFLG    Restore program/imperative flag
+       DST  @PGMPTR,@ARG      Get the place of error for FNDLNE
+       CALL FNDLNE            Find the line that the error
+*                              is in
+       DST  >A9AE,V@NLNADD+2  Say 'in' xx
+       DST  NLNADD+5,@VARW    Start place of line number
+       CALL DISO              Put out the line number
+       XML  SCROLL
+TRAC09 DST  V*FAC8,@ARG       Save PGMPTR from the entry
+TRAC10 DSUB 8,@FAC8           Go on to next entry
+       DCH  @STVSPT,@FAC8     If not end of stack
+       BR   GCEE2
+       CEQ  >68,V@2(@FAC8)    If function entry
+       BR   GCEC8
+       DCEQ @ARG,V*FAC8       If recursive
+       BR   GCEB3
+       MOVE 15,G@MSGCIS,V@NLNADD+2
+       XML  SCROLL            * CALLS ITSELF                <<<<<<<<<<<<<<<<<<<<
+TRAC12 DSUB 8,@FAC8           Goto next entry on stack
+GCE99  CEQ  >68,V@2(@FAC8)    While functions
+       BR   GCEAC
+       DCEQ @ARG,V*FAC8
+       BR   TRAC09
+       DSUB 8,@FAC8           Goto next entry on stack
+       BR   GCE99
+GCEAC  CGT  >65,V@2(@FAC8)    If string is numeric
+       BR   TRAC12
+GCEB3  MOVE 11,G@MSGCF,V@NLNADD+2
+       CALL FNDLNE            Find the line
+       DST  NLNADD+14,@VARW   Place to display it
+       CALL DISO              Display the line number
+       XML  SCROLL            * CALLED FROM
+       BR   TRAC09            Go on
+* Jump always
+GCEC8  CHE  >66,V@2(@FAC8)    If not permanent              <<<<CHECK THIS<<<<<<
+       BR   TRAC10
+GCECF  DCH  VRAMVS,@FAC8      While still not at bottom
+       BR   GCEE2
+       CEQ  >6A,V@2(@FAC8)    If subprogram
+       BS   TRAC51
+       DSUB 8,@FAC8           Go down an entry
+       BR   GCECF
+GCEE2  CZ   @PRGFLG           If not imperative
+       BS   GCEF6
+       MOVE 11,G@MSGCF,V@NLNADD+2
+       DST  NLNADD+14,@VARW   Place to display line #
+       CALL ASC               Display it
+       XML  SCROLL
+GCEF6  BR   RTNSET            Return with condition set
+* Trace back subprogram calls
+TRAC50 CEQ  1,@FAC13          If warning message only
+       BR   GCF02
+       CALL ERPNT5            Don't restore char set        <<<<<<<<<<<<<<<<<<<<
+       BR   GCF05
+GCF02  CALL ERPRNT            Print the real message
+GCF05  CZ   @PRGFLG
+       BS   RTNSET
+TRAC51 CZ   @PRGFLG
+       BS   RETNOS
+       DST  >A9AE,V@NLNADD+2  Display 'IN'
+       DST  NLNADD+6,@FAC12   Display location of name
+TRAC55 DST  V*FAC8,@FAC16     Get S.T. pointer
+       CLR  @FAC10            Need a double length
+       ST   V@1(@FAC16),@FAC10+1 Get the name length
+       DST  V@4(@FAC16),@FAC16   Get the name pointer
+       MOVE @FAC10,V*FAC16,V*FAC12   Display
+GCF2C  ADD  OFFSET,V*FAC12
+       DINC @FAC12
+       DDEC @FAC10
+       DCZ  @FAC10
+       BR   GCF2C
+       XML  SCROLL            Scroll the screen 'CALLED FROM'
+       MOVE 11,G@MSGCF,V@NLNADD+2
+       DST  @FAC8,@FAC10      In case at top level
+       DST  V@6(@FAC8),@FAC8  Get LSUBP off stack
+       DCZ  @FAC8             If not top level call
+       BS   GCF53
+       DST  NLNADD+15,@FAC12  Display location of name
+       BR   TRAC55
+* Now find original number
+GCF53  DST  V@-6(@FAC10),@ARG2 Get pointer to line number
+       CALL GETLN2            Get the actual line number
+       DST  NLNADD+15,@VARW   Place to put line number
+       CALL DISO              Display the line number
+       XML  SCROLL            Scroll the mess up
+* RETURN WITH CONDITION BIT SET
+RTNSET CEQ  @>8300,@>8300     SET CONDITION BIT
+RETNOS RTNC
+GETLN2 DDECT @ARG2
+       CALL GRSUB2            Read 2 bytes of data from ERAM
+       BYTE >5E             * (use GREAD1) or VDP   (>5E=ARG2)
+       DST  @EEE1,@ARG2       Put the result into @ARG2
+       RTN
+* Given a specific PGMPTR (in ARG) find the line number of
+* the line it points into and put the actual line number
+* in ARG2
+FNDLNE DST  @STLN,@ARG4       Get pointer into # buffer     <<<<<<<<<<<<<<<<<<<<
+       DINCT @ARG4            Point at the line pointer
+       DST  @ARG4,@ARG2       Get line pointer
+       DCLR @ARG6             Start with a zero value
+GCF7D  DCHE @ENLN,@ARG4       While in line buffer
+       BS   GCF9C
+       CALL GRSUB2            Get the line # from ERAM/VDP
+       BYTE >60             * @ARG4: Source address on ERAM/VDP
+       DCGT @ARG,@EEE1
+       BS   GCF96
+       DCH  @ARG6,@EEE1       If closer
+       BR   GCF96
+       DST  @ARG4,@ARG2       Make it the one
+       DST  @EEE1,@ARG6
+GCF96  DADD 4,@ARG4           Goto next line in buffer
+       BR   GCF7D
+GCF9C  CALL GETLN2            Get the line number
+       AND  >7F,@ARG2         Reset the breakpoint if any
+       RTN
+ 
+ 
+ 

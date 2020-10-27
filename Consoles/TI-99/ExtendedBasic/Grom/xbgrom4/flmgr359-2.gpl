@@ -1,0 +1,444 @@
+ 
+*************************************************************
+*                 DISPLAY ROUTINE                           *
+* DISPLAY handles all random screen access stuff..          *
+* the AT-clause, and the BEEP, ERASE ALL and SIZE clause.   *
+*************************************************************
+DISPL1 CALL DISACC            Evaluate DISPLAY options
+       BS   EOLEX             EXIT directly on end-of-statement
+* If anything is specified it has to be a colon
+       CZ   @PABPTR           Nothing was specified
+       BS   PRINZ1
+* At this point we MUST have a colon, or else we error off
+* (SYNTAX ERROR)
+       XML  SPEED             Check for a colon
+       BYTE SYNCHK          *  and continue
+       BYTE COLONZ          *   it approved
+       BR   PRINZ1            Continue with PRINT items
+*************************************************************
+*                    PRINT ROUTINE                          *
+* MAIN-HANDLER FOR ALL PRINT-FUNCTIONS                      *
+*************************************************************
+PRINT  CALL INITKB            Initialize keyboard I/O
+       CEQ  NUMBEZ,@CHAT      Could still be anything
+       BR   PRINZ1
+       CALL CHKFN             Check if default or open channel
+       DCZ  @FAC              Default intended
+       BS   PRNZ10
+       CALL CHKCON            Check and convert expression
+       BR   ERRFE             Error if PAB not in system
+* PRINT allowed in output, append or update modes
+*       Not allowed in input mode
+       CLOG >04,V@FLG(@PABPTR)
+       BS   G8288
+       CLOG >02,V@FLG(@PABPTR)
+       BS   ERRFE
+G8288  CEQ  CZREAD,V@COD(@PABPTR)
+       BR   G8293
+       CLR  V@OFS(@PABPTR)    Unpend pending INPUTs
+G8293  ST   CZWRIT,V@COD(@PABPTR) uncomplete PRINTs
+       CALL PRINIT            Initialize some variables
+* Next character has to be either EOL, COMMA, or COLON
+       CALL CHKEND
+       BS   EOLEX              exit on end of statement
+       CALL PARREC            Parse possible record clause
+       BS   PRINZ0            found "," but no REC clause
+PRNZ10 CALL CHKEND
+       BS   EOLEX             Exit on end of statement for
+*                       "PRINT #0" or "PRINT file position"
+       CEQ  COMMAZ,@CHAT
+       BR   G82BE
+       XML  PGMCHR            Get next in line
+PRINZ0 CZ   @PABPTR           For "PRINT #0"
+       BS   USING
+*         Interal type of file?
+       CLOG >08,V@FLG(@PABPTR)
+       BR   ERRFE
+       BR   USING             Execute USING clause
+G82BE  XML  SPEED             Must be at a
+       BYTE SYNCHK          *   colon at this point
+       BYTE COLONZ          *     and error off on others
+       BR   CONPRT            Make it a short branched ELSE
+PRINZ1 CEQ  USINGZ,@CHAT
+       BS   USING             End standard initialization
+* Test standard separators
+CONPRT CALL TSTSEP            Test separator character
+       CEQ  TABZ,@CHAT        Handle TABs
+       BS   PRTAB
+* At this point we've checked TAB and ; , :
+* The only remaining print items have to be expressions
+*  All expressions are being handled below.
+* If the result of the expression is a numeric, the string
+* is transformed into a string and printed. Strings are
+* printed "as is".
+*  The code for strings and converted numerics cannot be made
+* common, since numerics may require an extra space behind
+* the item, depending upon the current position in the record.
+*  Either way, the string is chunked up into little pieces if
+* it won't fit in an empty record.
+       XML  PARSE             Evaluate the expression
+       BYTE COLONZ
+* Special code for INTERNAL file handling
+*  Translate numeric datums into string format and indicate
+* length 8. Then check to see if the item fits within the
+* current record. If not, it is an error, since each item
+* has to fit.
+       CALL TSTINT            Test for internal files
+       BS   OTHEZ1            Nope, something different
+       CEQ  STRVAL,@FAC2      Change numerics
+       BS   G82EC
+       ST   8,@FAC12          To string length 8
+       MOVE 8,@FAC,@ARG       Save in ARG
+       ST   ARG,@FAC11        And use this as source
+       CALL RSTRING           Reserve some string space
+G82EC  ST   @RECLEN,@ARG      Compute remaining space to EOR
+       SUB  @CCPPTR,@ARG       for space checking
+       INC  @ARG              Make it real space
+       CHE  @ARG,@FAC7        Not enough!!!!!
+       BS   ERRFE
+* The = check includes length byte
+       ST   @FAC7,V*CCPADR    Prestore string length
+       DINC @CCPADR           Update actual RAM address
+       INC  @CCPPTR            and internal column pointer
+       BR   OTHEZ0
+OTHEZ1 CEQ  STRVAL,@FAC2      Print the string result
+       BR   G830D
+OTHEZ0 CALL OSTRNG            Output the string to the record
+       BR   CHKSEP
+G830D  CLR  @FAC11            Select standard BASIC format
+       XML  CNS               Convert number to string
+       CALL RSTRING           Reserve and copy string
+       CALL OSTRNG            Output the string
+* Possibly add an extra space if we're not at the end of the
+* current record.
+       CHE  @CCPPTR,@RECLEN   Enough space left
+       BR   CHKSEP
+       ST   SPACE,V*CCPADR    Add trailing space
+       ADD  @DSRFLG,V*CCPADR  Take care of screen I/O
+       DINC @CCPADR           Update current column address
+       INC  @CCPPTR            and base 1 pointer
+CHKSEP CALL TSTSEP            Check for legal delimiter
+       BR   ERRSYN            Illegal delimiter. SYNTAX ERROR
+*                              Unconditional branch
+* PRTAB - Print TAB as part of PRINT command
+PRTAB  CALL TSTINT            Watch out for INTERAL file types
+       BR   ERRFE             They can't handle TABs
+       XML  PGMCHR            Skip TAB keyword
+       CEQ  LPARZ,@CHAT
+       BR   ERRSYN
+       XML  PARSE             Parse TAB expression
+       BYTE RPARZ
+       CALL CNVDEF            Check and convert to integer
+       ST   @RECLEN,@FAC2     Set modulo number
+       CALL COMMOD            Compute remainder
+       CH   @FAC1,@CCPPTR     Position on next output record
+       BR   G834F
+       CALL OUTREC            Output current record - no pending
+       BS   CHKSEP             react on SIZE block!!!
+G834F  CEQ  @FAC1,@CCPPTR     Stay here
+       BS   CHKSEP
+       ST   @FAC1,@MNUM+1     Fill with spaces
+       XML  IO                OK, go ahead... fill'r up
+       BYTE FILSPC
+       BR   CHKSEP            And check separator again
+* Comma is similar to TAB, except that it generates at least
+* one space. The exact number of spaces generated depends
+* upon the current position within the record. If the next
+* fixed tab-position is outside the record, the record, the
+* current record is output and the column pointer is reset
+* to column 1 of the next record.
+PRTCOM ST   @CCPPTR,@MNUM+1   Compute initial # of spaces
+       DEC  @MNUM+1           Decrecment for 0 origin
+       CLR  @MNUM             Clear high byte of double
+       DIV  14,@MNUM          TABs are 14 spaces apart
+       INC  @MNUM             Compute next TAB-stop
+       MUL  14,@MNUM           and actual position
+       CH   @MNUM+1,@RECLEN   Within this record
+       BR   PRCOL
+       INC  @MNUM+1           Convert to real position
+       XML  IO                Fill spaces to new location
+       BYTE FILSPC
+       BR   PRSEM             Outside current record
+* The ":" (colon) separator is used to output the current
+* record, and proceed to position 1 of the next record.
+PRCOL  CALL OUTREC            Output the current record
+* The ";" (semi-colon) generates the null string. Since all
+* print items should be separated by a separator, this one
+* has been introduced to separate without moving to another
+* position. Notice that all separators join up here.
+PRSEM  XML  PGMCHR            Skip the separator
+       CALL CHKEND            Exit on end of line
+       BR   CONPRT            Continue if not end of line
+PRSMZ1 CZ   @DSRFLG           For screen output continue
+       BS   PREXIT
+       CLOG >08,@PABPTR       Check SIZE clause
+       BS   PREXIT
+       CALL OUTREC            Output current record (blank rest)
+       ST   @CCPADR+1,@CCPPTR Compute correct value for CCPPTR
+       SUB  >E1,@CCPPTR       Subtract current screen base
+       BR   PREXIT             and exit form this command
+* End of line exit routine for PRINT statement
+EOLEX  CZ   @DSRFLG           I/O - remove blocks if
+       BS   G83A1
+       CLOG >04,@PABPTR        " AT" clause unused
+       BR   G83A1
+       AND  >E7,@PABPTR        remove flag 3 (SIZE used)
+G83A1  CALL OUTREC            Output pending record
+* Continue here if record remains pending
+PREXIT CZ   @DSRFLG           Regular file/device I/O
+       BR   G83B1
+       DEC  @CCPPTR           Back to actual offset
+       ST   @CCPPTR,V@OFS(@PABPTR) Save for next statement
+       XML  CONT              Continue with next statement
+*                              End external I/O handling
+* Reset of code is for internal I/O handling (VDP)
+G83B1  CLOG >04,@PABPTR       Is not used
+       BR   G83BB
+       ST   @CCPPTR,@XPT      Save current value of pointer
+       INCT @XPT              CCPPTR: 1-28
+G83BB  CLOG >02,@PABPTR       Used BEEP clause
+       BS   G83C3
+       CALL TONE1             ---------- BEEP ------------
+G83C3  XML  CONT              Continue in PARSE routine
+* TSTINT - test for INTERAL type files, set COND if file
+*          is NOT INTERNAL
+TSTINT CZ   @DSRFLG           Couldn't possibly be INTERNAL
+       BR   RTC
+       CLOG >08,V@FLG(@PABPTR) Set COND according to bit 3
+       RTNC                   Return without changing COND
+********* PRINT / DISPLAY USING SECTION *********************
+* Arrive here after the keyword "USING" has been rejected.
+USING  XML  SPEED
+       BYTE SYNCHK          * Get first character of format stmt
+       BYTE USINGZ          *  after (double) checking USING
+       CEQ  LNZ,@CHAT         Pick up the line number
+       BR   G8430
+       XML  PGMCHR            Get high address
+       ST   @CHAT,@FAC
+       XML  PGMCHR             and low address
+       ST   @CHAT,@FAC1
+       XML  PGMCHR              get next program character
+       DST  @EXTRAM,@FAC2        in SEETWO : EXTRAM value will be
+*                                 changed
+       XML  SPEED
+       BYTE SEETWO          *  Find the line # in the program
+       DEX  @EXTRAM,@FAC2      result in SEETWO is in EXTRAM
+*                               and restore EXTRAM value
+       BR   USNGZ1               has to match exactly
+       DINCT @FAC2            Move up to the pointer field
+       DST   @DATA,@FAC8      Save DATA pointer for READ field
+       CALL GRSUB2            Read 2 bytes of data from ERAM/VDP
+       BYTE FAC2           *  @FAC2 : Source address on ERAM/VDP
+       DST  @EEE1,@DATA       @EEE1 : Destination addr. on CPU
+*                              Put it in @DATA
+       ST   IMAGEZ,@FAC2      Search for an IMAGE token
+       CALL SEARCH             at beginning of an statement
+       BS   USNGZ1            Error if not found on this line
+       CALL GETGFL            Get first part of format string
+       CALL CHKSTR            Prepare data for string assignment
+       DST  @FAC6,@BYTES      Copy actual string length in BYTES
+       DST  @FAC8,@DATA       Restore original DATA pointer
+       CALL CTSTR             Create a temporary string
+       DCZ  @FAC6
+       BS   G842E
+       CZ   @RAMTOP           Data from RAM
+       BR   G8423
+       MOVE @FAC6,V*TEMP5,V*SREF
+       BR   G842E
+G8423  DST  @FAC6,@FFF1       FFF1 : byte count
+       DST  @TEMP5,@DDD1      DDD1 : source address in ERAM
+       DST  @SREF,@EEE1       EEE1 : destination address on VDP
+       XML  GVWITE            Write data from ERAM to VDP      <<<<<<<<<<<<<<<<<
+G842E  BR   G8438
+G8430  XML  PARSE             Parse up to the ending ":"
+       BYTE COLONZ
+       CEQ  STRVAL,@FAC2      * IMAGE ERROR *
+       BR   USNGZ1
+G8438  CEQ  COLONZ,@CHAT      Probably no variable list
+       BS   G8448
+       CALL CHKEND            We better check that through
+       BR   ERRSYN             something sneaky sneaked in
+       CZ   @FAC7             End of line exit
+       BS   EOLEX
+       BR   G8463             Look for format item
+G8448  CZ   @FAC7             Exclude null strings
+       BS   USNGZ1
+       DST  @FAC4,@ARG        Get start address for string scan
+       ST   @FAC7,@ARG2       Get format string length
+USNGZ0 CEQ  >23,V*ARG         Found no format item yet
+       BS   G8460
+       DINC @ARG              Try next address
+       DEC  @ARG2             Update address
+       BR   USNGZ0            Try up to the end of the string
+USNGZ1 BR   ERRIM             * IMAGE ERROR
+* Now we're sure that we have at least one legal format item
+* (anything with a "#" in it)
+G8460  ST   COMMAZ,@CHAT      Fake comma seperator for printout
+G8463  XML  VPUSH             Current string might be temporary
+       DST  @FAC6,@BYTES      Create a workstring for output
+       INC  @BYTES+1          Create space for end of string indicator
+       CARRY                  String would be too long
+       BS   USNGZ1
+       XML  GETSTR            Length whold equal format string
+       DST  @SREF,@CURLIN     Create a temporary string
+       DADD @FAC6,@SREF       Compute last position in string
+       CLR  V*SREF            Set end of string indicator
+USNGZ3 DST  V@4(@VSPTR),@FAC4 Update FAC4 area in case garbage
+       MOVE @FAC6,V*FAC4,V*CURLIN Copy format
+       DST  @CURLIN,@FAC4     Complete preps for VPUSH
+       DST  >001C,@FAC        SREF = >001C
+       DINC @FAC6             Include 0 in string length
+       XML  VPUSH             Make the string temporary
+       DST  V@4(@VSPTR),@CURLIN Update current line pointer
+USNGZ4 CEQ  >23,V*CURLIN      Try to locate the next format
+       BS   G84C3
+       CZ   V*CURLIN          Not end of string yet
+       BS   G84A2
+       DINC @CURLIN           Update pointer if not found
+       BR   USNGZ4             and continue searching
+G84A2  CEQ  COMMAZ,@CHAT      Stop on last variable
+       BR   USNGZ9
+       XML  VPOP              Restore original workstring data
+       ST   @FAC7,@BYTES      Pring the current format string
+       DEC  @BYTES            Don't count the last "0"
+       ST   1,@MNUM+1         Indicate direct output without ski
+       CALL CHKRZ0            Copy string to output record
+       CALL OUTREC            Also output current record
+* FAC still contains the right data, however it is easier just
+* to copy the original string again.
+       DST  @FAC4,@CURLIN     Reconstruct CRULIN
+       XML  VPOP              Copy original string info
+       XML  VPUSH             Without actually removing it
+       DSUB @FAC6,@CURLIN     Reconstruct start address
+       BR   USNGZ3            Continue for the next variable
+G84C3  DCEQ V@4(@VSPTR),@CURLIN Avoid "#" as count
+       BS   USNZ42
+       DDEC @CURLIN           Backup to the sign
+       CEQ  >2E,V*CURLIN      Used ".#####"
+       BR   G84DB
+       DCEQ V@4(@VSPTR),@CURLIN
+       BS   USNZ42
+       DDEC @CURLIN           Avoid checking count bit
+G84DB  CEQ  >2D,V*CURLIN      Check for minus
+       BS   USNZ42
+       CEQ  >2B,V*CURLIN      Check for plus
+       BS   USNZ42
+       DINC @CURLIN           It's neither, so we undo
+* Check for availability of variables
+USNZ42 CEQ  COMMAZ,@CHAT      Exit if no more pt item
+       BR   USNGZ9
+       XML  PGMCHR            Get next expression
+       DSUB V@4(@VSPTR),@CURLIN Make CURLIN offset for
+*                                garbage collection
+       XML  PARSE             Parse up to ";" or ","
+       BYTE SEMICZ
+       DADD V@4(@VSPTR),@CURLIN Reconstruct new CLN after
+*                                garbage collection
+       DCLR @FAC8             Start with clean sheet for counts
+       DCLR @FAC11
+       CLR  @FAC13
+       DST  @CURLIN,@VAR4     Now start checking process
+       CEQ  >2E,V*CURLIN
+       BS   USNGZ5
+       CEQ  >23,V*CURLIN      Has to be "+" or "-"
+       BS   G8527
+       CEQ  >2D,V*CURLIN
+       BR   G851B
+       OR   >02,@FAC11        Set explict sign flag for CNS
+G851B  CEQ  >2B,V*CURLIN
+       BR   G8527
+       OR   >02,@FAC11        Set explict sign flag for CNS
+       OR   >04,@FAC11        Set positive sign flag for CNS
+G8527  CALL ACCNM             Accept first character plus "#"
+       ST   @FAC9,@FAC12      Set up FAC12 for CNS
+       CEQ  >2E,V*VAR4        Found decimal point
+       BR   G8540
+USNGZ5 CLR  @FAC9             Prepare for use as counter of no.
+*                              of # sign after decimal point
+       CALL ACCNM             Accept some more "#"'s
+       ST   @FAC9,@FAC13      Set up FAC13 for CNS
+       ADD  @FAC12,@FAC9      FAC9 now contains the total no.
+*                              of "#" sign, decimal point and
+*                              maybe a sign bit
+       DEC  @FAC9             Exclude the decimal point
+G8540  DCEQ >5E5E,V*VAR4      Attempt to decode  ^^
+       BR   USNZ55
+       DINCT @VAR4            Update address
+       DCEQ  >5E5E,V*VAR4
+       BR   G8562
+       DINCT @VAR4            Update address
+       OR   >08,@FAC11        Set E-format bit for CNS
+       CEQ  >5E,V*VAR4
+       BR   USNZ55
+       DINC @VAR4             Update end address
+       OR   >10,@FAC11        Set extended E-format bit for CNS
+       BR   USNZ55
+G8562  DDECT @VAR4            Correct for previous errors
+* At this point, CURLIN is pointing at the first item of the
+* format, VAR4 is pointing at the character following the item.
+USNZ55 CHE  >64,@FAC2         Detected numerical argument
+       BS   G8596
+       CLOG >02,@FAC11        Exclude the sign count
+       BS   G8570
+       DEC  @FAC9             FAC9 : Number of significant digits
+G8570  CLOG >08,@FAC11        If E-format is used
+       BS   G857C
+       CGT  >0A,@FAC9         More than 10 significant digits
+       BS   ERRIM
+       BR   G8581
+G857C  CGT  14,@FAC9          More than 14 significant digits
+       BS   ERRIM
+G8581  OR   >01,@FAC11        Set fixed format output it for CNS
+       XML  CNS               Convert number to fixed format string
+* FAC11 points to the beginning of the string after supressing
+* leading 0's, FAC12 contains the length of the string
+       ST   @FAC11,@FAC13     FAC13 now point to beginning of
+*                              the string
+       CLR  @FAC11            Clear high byte
+       MOVE @FAC11,*FAC13,V*CURLIN Copy the result string from
+*                                   temporary
+       DST  @VAR4,@CURLIN     Move pointer behind print field
+       BR   USNGZ4            Continue after printing
+G8596  DST  @VAR4,@FAC10      Compute total length
+       DSUB @CURLIN,@FAC10
+       CH   @FAC11,@FAC7      String exceeds limits
+       BR   G85B1
+       ST   >2A,@VAR0         Prepare a "*****.." string
+G85A4  ST   @VAR0,V*CURLIN    Fill the remainder of field
+       DINC @CURLIN           Up to the end
+USNZ67 DCEQ @VAR4,@CURLIN     Which is stored in VAR4
+       BR   G85A4
+       BR   USNGZ4
+G85B1  DCZ  @FAC6
+       BS   USNZ68
+       MOVE @FAC6,V*FAC4,V*CURLIN Copy result string
+       DADD @FAC6,@CURLIN     And update address in string
+USNZ68 ST   SPACE,@VAR0       Fill remainder with spaces
+       BR   USNZ67
+USNGZ9 XML  VPOP              Temporary string back out
+       ST   @CURLIN+1,@BYTES  Output up to the current
+*                              position
+       SUB  @FAC5,@BYTES      Create one byte result
+       BS   USNZ95            Avoid empty strings
+       ST   1,@MNUM+1         Prevent skip if field too small
+       CALL CHKRZ0            Preform all nomal I/O stuff
+USNZ95 XML  VPOP              Remove source format string
+       CALL CHKEND            Check for end of line exit
+       BS   EOLEX             Take end of line exit
+       XML  SPEED
+       BYTE SYNCHK          * Then it HAS to be a ";"
+       BYTE SEMICZ
+       CALL CHKEND            Now - must be EOS
+       BS   PRSMZ1            Supressed end of record, make
+*                              it a pending record
+       BR   ERRSYN            SYNTAX ERROR
+* Collect string of "#"'s
+ACCNM  INC  @FAC9             Update item count
+       DINC @VAR4              and item address
+       CEQ  >23,V*VAR4        Decode as many "#"'s as
+*                              possible
+       BS   ACCNM
+       RTN                    Return from duty
+ 
+ 
+ 

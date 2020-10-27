@@ -1,0 +1,323 @@
+ 
+ 
+ 
+*************************************************************
+*      LOAD / SAVE / MERGE UTILITY ROUTINE                  *
+* GPNAME gets program name from OLD and SAVE                *
+* Can also be used for future implementation of REPLACE     *
+* statement. Also gives valuable contribution to updating   *
+* of program pointers (VSPTR, STVSPT, FLAG, etc...) and     *
+* creation of LOAD/SAVE PAB                                 *
+*************************************************************
+GPNAME AND  >80,@FLAG         Avoid returns from ERRZZ routine
+       CEQ  STRINZ,@CHAT
+       BS   G9242
+       CEQ  NUMZ,@CHAT        * SYNTAX ERROR
+       BR   ERRSYN
+G9242  CALL CLSALL            First close all open files
+       CALL KILSYM            Kill the symbol table
+       DST  VRAMVS+8,@PABPTR  Create PAB as low as possible
+       CLR  V*PABPTR          Clear PAB with ripple-move
+       MOVE PABLEN-5,V*PABPTR,V@1(@PABPTR)
+       XML  PGMCHR            Get length of file-specifications
+       DSUB 4,@PABPTR         Make it a regular PAB
+       ST   @CHAT,V@NLEN(@PABPTR) Copy name length to PAB
+       DST  V@NLEN-1(@PABPTR),@STADDR Avoid problems(bugs!)
+       CZ   @RAMFLG           If ERAM not exist or imperative
+       BR   G9275
+       MOVE @STADDR,V*PGMPTR,V@NLEN+1(@PABPTR)
+       BR   G9284
+G9275  DST  @STADDR,@FFF1     @FFF1 : Byte count
+       DST  @PGMPTR,@DDD1     Source address on ERAM
+       DST  @PABPTR,@EEE1
+       DADD NLEN+1,@EEE1      Destination address on VDP
+       XML  GVWITE            Write from ERAM to VDP
+G9284  DADD @STADDR,@PGMPTR   Skip the string
+* OLD and SAVE can only be imperative
+       CLR  @DATA             Clear DATA line
+       RTN                    That's all folks
+*************************************************************
+*           READ / INPUT UTILITY ROUTINES                   *
+*************************************************************
+GETVAR DST  @PGMPTR,@STADDR   Save token pointer to first character
+       CLR  @VAR5             Clear # of parsed variables
+       DST  @VSPTR,@VAR4      Save first entry in V-stack
+* Start parse cycle for IMPUT statement
+GETVZ0 CHE  >80,@CHAT         Make sure of varialbe name
+       BS   ERRSYN
+       XML  SYM               Get correct symbol table entry
+       CLR  @VAR6             Start with zero paren nesting
+GETVZ1 CEQ  LPARZ,@CHAT       Increment counter for "("
+       BR   G92A2
+       INC  @VAR6
+G92A2  CZ   @VAR6             Watch out for final balance
+       BS   G92B6
+       CALL CHKEND            Check for unbalenced parenthesis
+       BS   ERRSYN            Somebody forgot something!!!!
+       CEQ  RPARZ,@CHAT       Decrement for ")"
+       BR   G92B2
+       DEC  @VAR6
+G92B2  XML  PGMCHR            Get character following last ")"
+       BR   GETVZ1
+G92B6  XML  VPUSH             Push entry to V-stack
+       INC  @VAR5             Count all pushed variables
+       CALL CHKEND            Next should either be EOS or ","
+       BS   GETVZ2            Found it EOS!!!!
+       XML  SPEED             Must be at a
+       BYTE SYNCHK          *  comma else
+       BYTE COMMAZ          *   its an error
+       CALL CHKEND            Check for end of statement
+       BR   GETVZ0            Haven't found it yet
+       CZ   @DSRFLG           Error for keyboard I/O
+       BR   ERRSYN
+GETVZ2 RTN
+* Create a temporary string in memory. BYTES contains the length
+CTSTR  DST  >6500,@FAC2       Indicate string in FAC
+CTSTR0 DST  @BYTES,@FAC6      Copy string length in FAC6
+       XML  GETSTR            Reserve the string
+       DST  @SREF,@FAC4       Copy start address of string
+       DST  >001C,@FAC        And indicate temp. string >001C=SREF
+       RTN
+* Create a temporary string from TEMP5. Length is given
+* in BYTES.
+CTMPST CALL CTSTR             Create the temporary string
+       CZ   @FAC7
+       BS   G92EB
+       MOVE @BYTES,V*TEMP5,V*SREF
+G92EB  RTN                    Non-empty
+* CHKNUM - Check for numeric argument
+CHKNUM CEQ  NUMZ,@VAR0+1
+       BR   G9303
+       CALL GETRAM            Get string length
+       DST  @DATA,@FAC12      Store entry for conversion
+       CLR  @VAR0             Prepare for double action
+       DADD @VAR0,@DATA       Get end of data field
+       CALL CONVER            Convert data to FAC #
+* Conversion should also end at end of field
+       DCEQ @DATA,V@CSNTMP    Set COND according to equalities
+G9303  RTNC                   Back to caller
+GETGFL ST   @RAMTOP,@FAC3     Select target memory
+GETDAT CZ   @FAC3             Get everything from RAM
+       BR   G9314
+GETRAM ST   V*DATA,@VAR0+1    Get data in VAR0+1
+       CLR  @FAC3             Be sure FAC3 = 0 !!!!
+       BR   G9320
+G9314  DST  1,@FFF1           FFF1 : byte count
+       DST  @DATA,@DDD1       DDD1 : source addr on ERAM
+       XML  GREAD1            Read data from ERAM
+       ST   @EEE1,@VAR0+1     EEE1 : Destination addr on CPU
+G9320  DINC @DATA             Go to next datum for next time
+       RTN
+CHKSTR DCLR @FAC6             Assume we'll have an empty string
+       CEQ  STRINZ,@VAR0+1
+       BS   CHKSZ0
+       CEQ  NUMZ,@VAR0+1      See ............
+       BR   EMPSTR
+CHKSZ0 CALL GETDAT            Next datum is length byte
+       CLR  @FAC6             Be sure high byte = 0 !!!!
+       ST   @VAR0+1,@FAC7     Prepare FAC for string assignment
+       DST  @DATA,@TEMP5      Save string addr for assignment
+       DADD @FAC6,@DATA       Update DATA for end of field
+       RTN
+* Empty strings are handled below
+EMPSTR CEQ  COMMAZ,@VAR0+1
+       BS   G9348
+       CALL DATEND            Check for end of data statement
+       BR   RTC               Return with COND if not EOS
+G9348  DDEC @DATA             Backup data pointer for empties
+       RTN
+DATEND EX   @VAR0+1,@CHAT
+       CALL CHKEND            Check for EOS (=EOL or "::")
+       EX   @VAR0+1,@CHAT     Restore original situation
+       RTNC
+ 
+*************************************************************
+*           OPEN / CLOSE / RESTORE UTILITY ROUTNE           *
+* CHKFN - Check for token = "#" and collect and check       *
+* filenumber. Also convert filenumber to (two byte) integer *
+* and check for range 0<x<256                               *
+*************************************************************
+CHKFN  XML  SPEED             Must be at a
+       BYTE SYNCHK         *   '#' else
+       BYTE NUMBEZ         *    its an error
+       XML  PARSE             Parse argument up to ":"
+       BYTE COLONZ
+* Code to check for negative or zero result in floating point
+* accumilator. If not... convert to integer and return two
+* byte integer in FAC
+CHKCNV CEQ  STRVAL,@FAC2      String/number mismatch
+       BS   ERRSNM
+       CLR  @FAC10            Clear error-code byte
+       XML  CFI               Convert to two byte integer
+       CZ   @FAC10            BAD VALUE ERROR
+       BR   ERRBV
+       CLOG >80,@FAC          Negative result
+       BR   RTC
+       DCZ  @FAC              And return with COND set/reset
+       RTNC
+CHKCON ST   @FAC1,@FNUM       Move result into FNUM
+* Check for high byte not zero (>0255)
+       CZ   @FAC              Bad value error
+       BR   ERRBV
+* Search routine - Search for a given file number in the
+* chain of allocated PABs.
+* IOSTRT contains the start of the PAB - chain
+       DST  @IOSTRT,@PABPTR   Get first link in the chain
+* Check for last PAB in the chain and exit if found
+CHKFZ1 DCZ  @PABPTR           Check if file # is correct
+       BS   G938F
+       CEQ  @FNUM,V@FIL(@PABPTR)
+       BS   RTC
+       DST  V*PABPTR,@PABPTR  Try the next PAB
+       BR   CHKFZ1
+RTC    CEQ  @>8300,@>8300     Force COND to "SET"
+G938F  RTNC                   Exit with no COND change
+*************************************************************
+* OUTEOF outputs the last record if this record is          *
+* non-empty, and if the PAB is open for non-imput mode      *
+* (UPDATE, APPEND or OUTPUT).                               *
+*************************************************************
+OUTEOF CLR  @DSRFLG
+       CEQ  CZWRIT,V@COD(@PABPTR) Non-input mode
+       BR   G93A5
+       CZ   V@OFS(@PABPTR)    Non-empty record
+       BS   G93A5
+       CALL PRINIT            Initiate for output
+       CALL OUTREC            Output and remove pending condition
+G93A5  RTN                    Return to whoever called
+*************************************************************
+* DELPAB routine - delete a given PAB from chain under the  *
+* assumption that the PAB exists                            *
+*************************************************************
+* First compute start and end address for block move
+DELPAB DST  V@BUF(@PABPTR),@STADDR Get lowest used address
+       DDEC @STADDR           Make that an addr following PAB
+       CLR  @CCPADR           Get highest addr in CCPADR (2)
+       ST   V@NLEN(@PABPTR),@CCPADR+1 complete the two bytes
+       ADD  PABLEN-1,@CCPADR+1 Add PAB length-1
+       DADD @PABPTR,@CCPADR   Compute actual addr within RAM
+       DCEQ @PABPTR,@IOSTRT   Watch out for first PAB
+       BS   G93E6
+       DST  @IOSTRT,@MNUM     Figure out where link to PAB is
+G93C2  DCEQ @PABPTR,V*MNUM    Continue while not found
+       BS   G93CE
+       DST  V*MNUM,@MNUM      Defer to next link in chain
+       BR   G93C2             Short end for code-savings
+G93CE  DST  V*PABPTR,V*MNUM   Copy link over deleted PAB
+       DCZ  V*MNUM            Adjust link only if not done
+       BS   G93E0
+       DADD @CCPADR,V*MNUM    Add deleted # of bytes for
+       DSUB @STADDR,V*MNUM     link correction
+G93E0  DST  V*MNUM,@PABPTR    Get new PABPTR
+       BR   G93F7
+G93E6  DST  V*PABPTR,@IOSTRT  Update first link
+       DCZ  @IOSTRT           Only adjust if not last link
+       BS   G93F4
+       DADD @CCPADR,@IOSTRT   Add deleted # of bytes
+       DSUB @STADDR,@IOSTRT
+G93F4  DST  @IOSTRT,@PABPTR   Get new PABPTR
+* Move the bytes below the deleted block up in memory. This
+* includes both variables and PABs
+G93F7  DST  @STADDR,@MNUM     Get # of bytes to move
+       DSUB @FREPTR,@MNUM
+       DST  @CCPADR,@CCPPTR   Save destination address
+G9400  DCZ  @MNUM
+       BS   G9411
+       ST   V*STADDR,V*CCPADR Move byte by byte
+       DDEC @STADDR           Update source
+       DDEC @CCPADR            and destination pointers
+       DDEC @MNUM             Also update counter value
+       BR   G9400
+G9411  DSUB @STADDR,@CCPADR   Compute # of bytes of old PAB
+       DCZ  @PABPTR           Avoid trouble with last PAB
+       BS   G9431
+G9418  DCZ  V*PABPTR          Ad infinitum (or fundum)
+       BS   G942C
+       DADD @CCPADR,V*PABPTR  Adjust link to next PAB
+       DADD @CCPADR,V@BUF(@PABPTR) Update the buffer link
+       DST  V*PABPTR,@PABPTR  Get next link in chain
+       BR   G9418
+G942C  DADD @CCPADR,V@BUF(@PABPTR) Update buffer link
+* Adjust symbol table links
+G9431  DCZ  @SYMTAB
+       BS   G94B4
+       DCGE @CCPPTR,@SYMTAB   Only update lower links
+       BS   G94B4
+       DADD @CCPADR,@SYMTAB   Get symbol table pointer back
+       DST  @SYMTAB,@PABPTR   Get pointer for update
+DELPZ1 CZ   @RAMTOP
+       BR   DELPZ2
+       DCGE @STLN,V@4(@PABPTR) If imperative
+       BS   G9451
+DELPZ2 DADD @CCPADR,V@4(@PABPTR) Adjust name pointer
+G9451  CGE  0,V*PABPTR        If string-fix breakpoints
+       BS   G949B
+       ST   >07,@FAC          Mask to get # of dims         <<<<<<<<<<<<<<<<<<<<
+       AND  V*PABPTR,@FAC     Get # of dims                 <<<<<<<<<<<<<<<<<<<<
+       DST  @PABPTR,@FAC2     Pointer to 1st dim max        <<<<<<<<<<<<<<<<<<<<
+       DADD 6,@FAC2            or string pointer            <<<<<<<<<<<<<<<<<<<<
+       DST  1,@FAC6           Number of pointers to change  <<<<<<<<<<<<<<<<<<<<
+       CLR  @FAC4             For 2 byte use of option base <<<<<<<<<<<<<<<<<<<<
+G946B  CZ   @FAC              While more dimendions         <<<<<<<<<<<<<<<<<<<<
+       BS   G9483
+       ST   1,@FAC5           Assume option base 0          <<<<<<<<<<<<<<<<<<<<
+       SUB  @BASE,@FAC5       But correct if base 1         <<<<<<<<<<<<<<<<<<<<
+       DADD V*FAC2,@FAC4      Get dim maximum               <<<<<<<<<<<<<<<<<<<<
+       DMUL @FAC6,@FAC4       Multiply it in                <<<<<<<<<<<<<<<<<<<<
+       DEC  @FAC              Next dim                      <<<<<<<<<<<<<<<<<<<<
+       DINCT @FAC2                                          <<<<<<<<<<<<<<<<<<<<
+       B    G946B                                           <<<<<<<<<<<<<<<<<<<<
+* FAC2 now points at the 1st string pointer
+* FAC6 contains the # of pointers that need to be changed
+G9483  DCZ  @FAC6             While pointers to cheange
+       BS   G949B
+       DST  V*FAC2,@FAC       Get pointer to string
+       DCZ  @FAC              If sting is non-null
+       BS   G9495
+       DST  @FAC2,V@-3(@FAC)  Fix backpointer
+G9495  DINCT @FAC2            Point to next pointer
+       DDEC @FAC6             One less pointer to change
+       BR   G9483
+G949B  DCZ  V@2(@PABPTR)
+       BS   G94B4
+       DCGE @CCPPTR,V@2(@PABPTR)
+       BS   G94B4
+       DADD @CCPADR,V@2(@PABPTR) Adjust next value link
+       DST  V@2(@PABPTR),@PABPTR Next entry
+       BR   DELPZ1
+G94B4  DADD @CCPADR,@FREPTR   Update free word pointer
+       RTN
+*************************************************************
+* CNVDEF - Convert to 2 byte integer and default to 1 on    *
+*          negative or 0 ....                               *
+*************************************************************
+CNVDEF CALL CHKCNV            Check and convert
+       BR   CNVDZ0
+       DST  1,@FAC            Default to 1 or minus and 0
+CNVDZ0 RTN                    And return without COND set
+*************************************************************
+* PARREC parses a possible REC clause in INPUT, PRINT or    *
+* RESTORE. In case a comma is detected without a REC clause *
+* following it, the COND is set upon return. In case a REC  *
+* clause is specified for a file opened for SEQUENTIAL      *
+* access, a * FILE ERROR is given.                          *
+*************************************************************
+PARREC CEQ  COMMAZ,@CHAT      Only check if we have a ","
+       BR   G94EE
+       XML  PGMCHR            Check next token for REC
+       CEQ  RECZ,@CHAT        May be USING clause
+       BR   RTC
+       CLOG 1,V@FLG(@PABPTR)
+       BS   ERRFE
+       XML  PGMCHR            Get first character of expression
+       CALL OUTEOF            Output possible pending output
+       CLR  V@OFS(@PABPTR)    Clear record offset
+       XML  PARSE             Translate the expression in REC
+       BYTE COLONZ
+       CALL CHKCNV            Check numeric and convert to
+       CGE  0,@FAC             2 byte integer, Bad Value
+       BR   ERRBV
+       DST  @FAC,V@RNM(@PABPTR) Store actual record number
+G94EE  RTN
+ 
+ 

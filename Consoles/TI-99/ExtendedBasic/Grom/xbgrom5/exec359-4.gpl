@@ -1,0 +1,332 @@
+ 
+*************************************************************
+*                   TRACE STATEMENT                         *
+*************************************************************
+NTRACE OR   >10,@FLAG         Set the trace bit             <<<<<<<<<<<<<<<<<<<<
+XMLCON XML  CONT              Continue on
+*************************************************************
+*                 UNTRACE STATEMENT                         *
+*************************************************************
+NUNTRC AND  >EF,@FLAG         Reset the trace bit           <<<<<<<<<<<<<<<<<<<<
+       XML  CONT              Continue on
+*************************************************************
+*          BREAK AND UNBREAK STATEMENTS                     *
+*************************************************************
+NBREAK ST   >FF,@ARG          BREAK flag                    <<<<<<<<<<<<<<<<<<<<
+       CALL CHKEND            Check for end of statement
+       BR   LINEGP            If not goto LINEGP
+       DDEC @PGMPTR           Back up so CON will rescan end
+       CZ   @PRGFLG           Rative without line #
+       BR   EXEC6C
+ERROLP CALL ERRZZ             Only legal in a program       <<<<<<<<<<<<<<<<<<<<
+       BYTE 27
+NUNBRK CLR  @ARG              UNBREAK flag for common       <<<<<<<<<<<<<<<<<<<<
+       CALL CHKEND            Check for end of statement
+       BS   UNBK01            If end then goto UNBK01
+LINEGP CALL LINE              Get line #
+       DST  @ENLN,@ARG2
+       DSUB >03,@ARG2         1st line #
+LNGP1  DCHE @STLN,@ARG2       If line not found
+       BR   WRNLNF
+       CALL GRSUB3            Read line # of data from ERAM
+       BYTE >5E           *   (use GREAD1) or VDP          (ARG2)
+* @ARG2: Source addr in ERAM/VDP, reset possible breakpoint too
+       DCEQ @FAC,@EEE1        If line found
+       BS   LNGP2
+       DSUB 4,@ARG2           Next line in VDP or ERAM
+       BR   LNGP1
+* JUMP ALWAYS
+LNGP2  CZ   @RAMTOP           If ERAM exists
+       BS   GA6DA
+       AND  >7F,@EEE1         Assume UNBREAK flag           <<<<<<<<<<<<<<<<<<<<
+       CZ   @ARG              If BREAK flag                 <<<<<<<<<<<<<<<<<<<<
+       BS   GA6D1
+       OR   >80,@EEE1         Set the breakpoint            <<<<<<<<<<<<<<<<<<<<
+GA6D1  CALL GWSUB             Write a few bytes of data to
+*                              ERAM (use GWRITE)
+       BYTE >5E,>58,>01     * ARG2,EEE1,1
+*                            @ARG2: Destination addr on ERAM
+*                            @EEE1: Data
+*                            1    : Byte count
+       B    LNGP2B
+GA6DA  AND  >7F,V*ARG2        Assume UNBREAK flag first     <<<<<<<<<<<<<<<<<<<<
+       CZ   @ARG              If BREAK flag                 <<<<<<<<<<<<<<<<<<<<
+       BS   LNGP2B
+       OR   >80,V*ARG2        Set the breakpoint            <<<<<<<<<<<<<<<<<<<<
+LNGP2B CALL CHKEND            Check for end of statement
+       BS   LNGP4             If end then continue
+       XML  SPEED             Must be
+       BYTE SYNCHK         *     at a
+       BYTE COMMAZ         *       comma now
+       BR   LINEGP
+* JUMP ALWAYS
+WRNLNF CALL WARNZZ            Note: warning not error
+       BYTE 38             *  'LINE NOT FOUND'
+       BR   LNGP2B            And contiue on
+* JUMP ALWAYS
+UNBK01 CALL UBSUB             Clear all bkpt in line # table
+LNGP4  XML  CONT              Contiue
+*     CLEAR ALL BREAKPOINTS
+UBSUB  DST  @STLN,@FAC8       END OF LINE # BUFFER
+GA6FF  CALL UBSUB1            Reset one line # at a time
+       DADD 4,@FAC8           Got to the next line
+       DCH  @ENLN,@FAC8       End of table
+       BR   GA6FF
+       RTN
+UBSUB1 CALL GRSUB3            Read the line # from ERAM/VDP
+*                             Reset possible bkpt too
+       BYTE >52            *  @FAC8: Source addr on ERAM/VDP
+       CALL GWSUB             Write a few bytes of data to
+*                              ERAM(use GWRITE) or VDP
+       BYTE >52,>58,>01    *  FAC8,EEE1,1
+*                          @FAC8: Destination adr in ERAM/VDP
+*                          @EEE1: Data
+*                          1    : Byte count
+       RTN
+*************************************************************
+*                USER DEFINED FUNCTIONS                     *
+* Subroutine to store away the information of the tokens in *
+* a function reference, go into the 'DEF' statement,        *
+* calculate the value of the expression and then resume     *
+* execution of the user's program after the reference.      *
+* An entry in the FAC and on the stack for a function       *
+* reference looks like:                                     *
+* +--------+-----+---------------------+--------+---------+ *
+* | PGMPTR | >68 | string/numeric flag | SYMTAB | FREPTR  | *
+* +--------+-----+---------------------+--------+---------+ *
+*  FAC      FAC2  FAC3                  FAC4     FAC6       *
+*                                                           *
+* The 'PGMPTR' is where execution resumes after evaluating  *
+* the function. String (80)/numeric(00) flag is function    *
+* type. SYMTAB is the old symbol table pointer and FREPTR   *
+* is the old free space pointer. These are restored after   *
+* the function is evaluated.                                *
+*************************************************************
+UDF    CZ   @PRGFLG           If imperative
+       BR   GA720
+       CZ   @RAMTOP+1         And ERAM, error
+       BR   ERROLP
+GA720  CLR  @FAC7             Assume no args
+       DCLR @ERRCOD           Clear the error code for cont
+       CLR  @ARG2             Safety for VPUSH
+       CLR  @FAC2             Sagety for VPUSH
+       CEQ  LPARZ,@CHAT
+       BR   GA73B
+       XML  VPUSH             Save ptr to function definition
+       XML  PARSE             PARSE to get arg value
+       BYTE >FF
+       MOVE 8,@FAC,@ARG       Save PARSE result
+       XML  VPOP              Get S.T. ptr to function definition
+       INC  @FAC7             Indicate theat we have an arg
+GA73B  ST   @FAC7,@TEMP5      Move the parmeter count
+       DST  @FAC,@TEMP4       S.T. ptr to definition
+       XML  VPUSH             Allow room for UDF result
+       MOVE 8,@ARG,@FAC       Retrieve parse result
+       XML  VPUSH             Save parse result
+       ST   V*TEMP4,@FAC2     Get S.T. declarations
+       ST   @FAC2,@FAC3       Do this to save string bit
+* NOTE: THIS IS TO ALLOW THE CHECKING AFTER THE FUNCTION HAS
+*       BEEN EVALUATED TO MAKE SURE THE FUNCTION
+*       TYPE (STRING/NUMERIC) MATCHES THE RESULT IT PRODUCES.
+       AND  >07,@FAC2         Mask all but # of parameters
+       CEQ  @TEMP5,@FAC2
+       BR   ERRIAL
+* Incorrect argument list error above.
+       DST  @PGMPTR,@FAC      Will resume execution here
+       ST   >70,@FAC2         Entering parameter into symbol
+*                    table while in UDF statement executing
+       AND  >80,@FAC3         Mask all but string bit       <<<<<<<<<<<<<<<<<<<<
+       DSUB 16,@VSPTR         Get below parse result
+       DST  @SYMTAB,@FAC4     Save current symbol table ptr
+       DST  @FREPTR,@FAC6     Save current free space ptr
+       XML  VPUSH             Save the return info
+       DADD 8,@VSPTR          Get back to parse result
+*********** SHIFT EXECUTION TO FUNCTION DEFINITION **********
+       DST  V@6(@TEMP4),@PGMPTR    Set text ptr to definition
+       XML  PGMCHR            Get 1st character in the definition
+       CH   >A4,@SUBSTK       Stack overflow
+       BS   ERRSO
+       MOVE 24,@>8300,V@VROAZ  Roll out temporaries
+       OR   >08,@FLAG         Set function flag for ENTER
+       ST   >80,@XFLAG        Make calls look like ENTERX
+       CEQ  EQUALZ,@CHAT
+       BR   GA79C
+* NOTE: This is to keep the global/local variables correct in
+*       the event that a function uses another function in
+*       its evaluation.
+       CLR  @FAC15            Create a dummy entry in table
+       CALL ENT09              for no-paremter function
+       DDECT @PGMPTR          Back up to equal sign
+       CLR  V@2(@VSPTR)       This is to keep ASSGNV(called
+*                              below) not to screw up in
+*                              case FAC2 happens to have a
+*                              value (greater) >65
+       BR   GA79F
+GA79C  CALL ENTER             Enter the parameter
+GA79F  XML  PGMCHR            Get the '=' (Checked in PSCAN)
+       AND  >F7,@FLAG         Reset to normal ENTERs
+       MOVE 24,V@VROAZ,@>8300
+       ST   >68,V@-6(@VSPTR)  Correct stack entry ID
+       DST  V@SYMBOL,V@2(@SYMTAB)  Fudge link to
+*                                   get global values
+       DST  @SYMTAB,@FAC      Set up for SMB
+       XML  SMB               Get value space
+       MOVE 8,@FAC,@FAC8      Destination
+       XML  VPOP              Get arg back
+       MOVE 8,@FAC,@ARG       Argument value
+       MOVE 8,@FAC8,@FAC      Destination
+       XML  VPUSH             Push to destination
+       MOVE 8,@ARG,@FAC       Argument value
+       CEQ  >65,@FAC2         If a string
+       BR   GA7E2
+       DCEQ >001C,@FAC        If not temp                   (>001C = SREF)
+       BS   GA7E2
+       DST  V*FAC,@FAC4       Get new location of string
+*                             Parameter was allocated in S.T.
+GA7E2  XML  PGMCHR            Skip the '='
+       XML  ASSGNV            Assign the value to the parameter
+       XML  PARSE             PARSE to end of function definition
+       BYTE TREMZ
+**** CHECK FOR TYPE MATCH (STRING/STRING OR NUM/NUM)*********
+**** BETWEEN THE RESULT AND THE FUNCTION TYPE ***************
+       CEQ  >65,@FAC2         If result string
+       BR   GA7F6
+       CZ   V@3(@VSPTR)       If functional
+       BS   ERRSNM
+       BR   GA7FC              not a string
+GA7F6  CZ   V@3(@VSPTR)       If functional
+       BR   ERRSNM
+***** NOW RESTORE SYMBOL TABLE AND RESUME *******************
+***** EXECUTION AT THE ORIGINAL LINE ************************
+GA7FC  CALL DELINK            Delink the parameter entry
+       DST  V@8(@VSPTR),@PGMPTR Manual pop to get ptr back
+       DDEC @PGMPTR           Back up text pointer
+       XML  PGMCHR            Get next token
+       XML  CONT
+DELINK DST  @SYMTAB,@TEMP5    Save addr of S.T. entry just
+*                             in case entry is a string
+*                             (must free the string)
+       MOVE 4,V@4(@VSPTR),@SYMTAB  Restore old symbol table
+*                             pointer and free space pointer
+*                             This handles the freeing of the
+*                             string value which was assigned
+*                             to the parameter.
+       CGE  0,V*TEMP5         If string parmeter
+       BS   GA84C
+       DST  V@6(@TEMP5),@TEMP5 Where the string is
+       DCZ  @TEMP5            If non-null string
+       BS   GA833
+       DST  V@-3(@TEMP5),@TEMP2 Get backpointer
+       DCHE @SYMTAB,@TEMP2    If not used
+       BS   GA833
+       DCLR V@-3(@TEMP5)      Free up the string
+* This handles the special case of F$(X$)=X$
+* The result, which was permanent, must be made a temp.
+GA833  CEQ  >65,@FAC2         If string result
+       BR   GA84A
+       DCHE @SYMTAB,@FAC      If came from argument
+       BS   GA84A
+       DCZ  @FAC4             If non-null
+       BS   GA846
+       DCLR V@-3(@FAC4)       Clear the backpointer
+GA846  DST  >001C,@FAC        Make it a temp                (SREF)
+GA84A  BR   GA856             If numeric parameter
+GA84C  CZ   @RAMTOP           If ERAM exist
+       BS   GA856
+       DADD 8,@RAMFRE         Remove 8 bytes of value
+GA856  DSUB 8,@VSPTR          Trash the stack entry
+       RTN                    And retrun
+ATTNUT XML  PARSE
+       BYTE RPARZ
+       CALL CKSTNM            CHECK FOR NUMERIC OR STRING
+       XML  SPEED             Insure argument is in
+       BYTE RANGE          *   range of 0-30
+       BYTE 0
+       DATA 30
+       SRL  1,@FAC1           0,1 : 0000        ATTENUATION/2
+*                             2,3 : 0001
+*                             4,5 : 0010
+*                             6,7 : 0011        ETC...
+       OR   >F0,@FAC1         REGISTER BITS
+       RTN
+*************************************************************
+* SUBROUTINE TO SET POINTER TO EACH DATUM                   *
+*************************************************************
+DATAST DDEC @LNBUF            Point to 1st byte of line ptr
+       CALL GRSUB2            Read 2 bytes from VDP or ERAM
+       BYTE LNBUF           *  (use GREAD1), @LNBUF: Source
+*                           *  address in ERAM or VDP
+       DST  @EEE1,@DATA       Put it in @DATA
+       CALL SRDATA            Look for 'DATA' on the line
+       BR   DATST1            OK, FOUND ANOTHER 'DATA' STMT
+       DDECT @LNBUF           NO
+       DCEQ  @STLN,@LNBUF
+       BS   GA887
+       DDEC @LNBUF            Point to 1st token address
+       BR   DATAST
+GA887  CLR  @DATA             Indicate no data
+DATST1 RTN
+*************************************************************
+* Subroutine to get line number and goto routine to display *
+* it on the screen.                                         *
+*************************************************************
+ASC    CZ   @RAMFLG
+       BR   GA897
+       DST  V@-2(@EXTRAM),@ARG2   Get line # in
+       BR   GA8A5
+GA897  DST  2,@FFF1           @FFF1 : Byte count
+       DST  @EXTRAM,@DDD1     @DDD1 : Source addr in ERAM
+       DDECT @DDD1
+       XML  GREAD1            Read data from ERAM
+       DST  @EEE1,@ARG2       @EEE1 : Destination addr on CPU
+GA8A5  AND  >7F,@ARG2         Reset the breakpoint if any
+       B    DISO
+*************************************************************
+* Code to decode error returned from ALC                    *
+*************************************************************
+ERORZ  CASE @ERRCOD           DECODE ERROR FROM INTERPRETER  <<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN            0 SYNTAX ERROR                 <<<<<<<<<<<<<<<<<<<
+       BR   ERRMEM            1 MEMORY FULL                  <<<<<<<<<<<<<<<<<<<
+       BR   ERRBV             2 BAD VALUE                    <<<<<<<<<<<<<<<<<<<
+       BR   ERRLNF            3 LINE NOT FOUND               <<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN            4 SYNTAX                       <<<<<<<<<<<<<<<<<<<
+       BR   ERRBS             5 BAD SUBSCRIPT                <<<<<<<<<<<<<<<<<<<
+       BR   ERRSNM            6 STRING-NUMBER MISMATCH       <<<<<<<<<<<<<<<<<<<
+       BR   ERRSO             7 STACK OVERFLOW               <<<<<<<<<<<<<<<<<<<
+       BR   ERRBA             8 BAD ARGUMENT                 <<<<<<<<<<<<<<<<<<<
+       BR   ERRRWG            9 RETURN WITHOUT GOSUB         <<<<<<<<<<<<<<<<<<<
+       BR   ERRIAL            A INCORRECT ARGUMENT LIST      <<<<<<<<<<<<<<<<<<<
+       BR   ERRFNN            B FOR/NEXT NESTING             <<<<<<<<<<<<<<<<<<<
+       BR   ERRNWF            C NEXT WITHOUT FOR             <<<<<<<<<<<<<<<<<<<
+       BR   ERRMUV            D IMPROPERLY USED NAME         <<<<<<<<<<<<<<<<<<<
+       BR   ERRIAL            E INCORRECT ARGUMENT LIST      <<<<<<<<<<<<<<<<<<<
+       BR   ERRRSC            F RECURSIVE SUBPROGRAM CALL    <<<<<<<<<<<<<<<<<<<
+       BR   ERRSNF           10 SUBPROGRAM NOT FOUND         <<<<<<<<<<<<<<<<<<<
+       BR   ERROLP           11 ONLY LEGAL IN A PROGRAM      <<<<<<<<<<<<<<<<<<<
+       BR   ERRSNS           12 MUST BE IN SUBPROGRAM        <<<<<<<<<<<<<<<<<<<
+*************************************************************
+* SUBROUTINE TO GET LINE # FOLLOWING 'BREAK', 'UNBREAK',    *
+* 'RESTORE'                                                 *
+*************************************************************
+LINE   CEQ  LNZ,@CHAT         Should be line # reference     <<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN
+       XML  PGMCHR            Get high order line #
+       ST   @CHAT,@FAC        Build result in FAC, FAC1
+       XML  PGMCHR
+       ST   @CHAT,@FAC1       Low order line #
+       XML  PGMCHR            Get token following line #
+       RTN
+CONV1  CLR  @FAC10
+       XML  CSNUM             Convert String to Number
+*************************************************************
+       ST   @FAC10,V@CSNTP1                                 *
+       DST  @FAC12,V@CSNTMP Save those in temporary, because*
+*                            in ERROV : WARNING routine have*
+*                            FAC12 and FAC10 values changed *
+*************************************************************
+WRNNO  CZ   @FAC10            Numeric overflow
+       BS   GA8F9
+       CALL WARNZZ
+       BYTE 2
+GA8F9  RTN
+ 

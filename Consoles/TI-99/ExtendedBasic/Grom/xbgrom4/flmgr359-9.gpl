@@ -1,0 +1,389 @@
+ 
+ 
+ 
+*************************************************************
+*              DISPLAY / ACCEPT UTILITIES                   *
+*************************************************************
+DISACC CALL INITKB            PABPTR is used as flag (no DSR I/O)
+DISPZ1 CEQ  ERASEZ,@CHAT      Check for ERASE ALL
+       BR   G9518
+       CLOG 1,@PABPTR          already used once
+       BR   ERRSYN
+       XML  PGMCHR            Check next token for ALL
+       XML  SPEED
+       BYTE SYNCHK          *  has to be ALL
+       BYTE ALLZ
+       ALL  BKGD+OFFSET       Clear screen to background color
+       ST   3,@XPT            Reset pending output pointer
+       CLOG 4,@PABPTR         Didn't use AT yet
+       BR   G9513
+       ST   1,@CCPPTR         Reset column pointer
+       DST  SCRNBS+2,@CCPADR   and screen base address
+G9513  OR   1,@PABPTR         Set "ERASE USED" flag
+       BR   DISPZ1            Try next token
+G9518  CEQ  BEEPZ,@CHAT        delay action for BEEP
+       BR   G9529
+       CLOG 2,@PABPTR         Use it only once
+       BR   ERRSYN
+       OR   2,@PABPTR         No syntax error detected here
+       XML  PGMCHR            Evaluate next token
+       BR   DISPZ1            Get set for second pass
+G9529  CEQ  ATZ,@CHAT         Generate "AT" clause
+       BR   G9571
+       CLOG 4,@PABPTR         Second usage not
+       BR   ERRSYN
+       XML  PGMCHR             allowed....
+       XML  SPEED
+       BYTE SYNCHK          * Skip left parenthesis
+       BYTE LPARZ
+       XML  PARSE             Now parse any expression
+       BYTE COMMAZ
+       XML  SPEED
+       BYTE SYNCHK          * Check for "," and skip it
+       BYTE COMMAZ
+       CALL CNVDEF            Convert to 2 byte numeric
+       ST   24,@FAC2          Convert modulo 24 (# screen lines)
+       CALL COMMOD            Compute remainder
+       DEC  @FAC1             Convert back to 0 (range was 1-24)
+       MUL  32,@FAC1          Convert to line base address
+       DST  @FAC1,@CCPADR     And repalce CCPADR
+       XML  PARSE             Parse column expression
+       BYTE RPARZ
+       XML  SPEED
+       BYTE SYNCHK          * Check for ")" at end
+       BYTE RPARZ
+       CALL CNVDEF            Again convert to two byte int.
+       ST   VWIDTH,@FAC2      Convert modulo video width
+       CALL COMMOD            Compute remainder
+       ST   @FAC1,@CCPPTR     Select current column
+       DADD @FAC,@CCPADR      Compute full address
+       DINC @CCPADR           Adjust for column 0 (offset-1)
+       OR   4,@PABPTR         Set "AT-CLAUSE" used flag
+       OR   32,@PABPTR        Set "NON-STANDARD SCREEN ADDRESS"
+       BR   DISPZ1            Continue for next item
+G9571  CEQ  SIZEZ,@CHAT       "SIZE" clause
+       BR   G95A0
+       CLOG 8,@PABPTR         Only use once
+       BR   ERRSYN
+       XML  PGMCHR            Get character following the SIZE
+       CEQ  LPARZ,@CHAT        has to open "("
+       BR   ERRSYN
+       XML  PARSE             And close again ")"
+       BYTE VALIDZ
+       CGE  0,@FAC            Change to positive argument
+       BS   G958F
+       DNEG @FAC              For ACCEPT statement with size
+       OR   >80,@PABPTR        indicate in highest bit
+G958F  CALL CHKCNV
+       BS   ERRBV             * BAD VALUE
+       CZ   @FAC              Also for args >255 (less then)
+       BR   ERRBV
+       ST   @FAC1,@PABPTR+1   Copy to PABPTR (always used)
+       OR   8,@PABPTR         Prevent further use
+       BR   DISPZ1             and go on
+G95A0  CEQ  VALIDZ,@CHAT      Exclude VALIDATE option
+       BS   G95B9
+* Start evaluating ERASE clause here
+       CLOG 8,@PABPTR
+       BS   CHKEND
+       CALL SIZE1             Evaluate field defined in SIZE
+* If it's no DISPLAY keyword ( AT, SIZE, BEEP or USING) it
+* has to be a print separator or colon ":"
+* If anything is specified is has to be a colon or end of
+* line... for end-of-line output current record
+* Check for end of statement
+CHKEND CLOG >80,@CHAT
+       BS   G95B7
+       CHE  TREMZ+1,@CHAT
+       BR   RTC
+G95B7  CZ   @CHAT             Set COND according to CHAT
+G95B9  RTNC
+*************************************************************
+* NXTCHR - Get next program character - skip all strings,   *
+*          numerics and line references...                  *
+*************************************************************
+NXTCHR CALL CHKEND            Check for end of statements
+       BS   RTC               Avoid end of statement
+       CEQ  STRINZ,@CHAT      Skip all strings
+       BS   NXTCZ0
+       CEQ  NUMZ,@CHAT         and numerics/unquoted strings
+       BR   G95D5
+NXTCZ0 XML  PGMCHR            Get string length
+       ST   @CHAT,@FAC1       Make that a double please...
+       CLR  @FAC              Hic.... Oops, sorry
+       DADD @FAC,@PGMPTR      Back to the serious stuff
+       BR   G95DC
+G95D5  CEQ  LNZ,@CHAT         Line # = skip 2 tokens
+       BR   G95DC
+       DINCT @PGMPTR          <----------- That's the skip
+G95DC  XML   PGMCHR           Get the next token
+       RTN
+*************************************************************
+*                 PRINT / DISPLAY UTILITES                  *
+* Use the parameters specified in SIZE for further          *
+* evaluation of the limited field length                    *
+*************************************************************
+SIZE1  CLOG 4,@PABPTR         Not "AT" clause used
+       BR   G95FC
+       CEQ  1,@CCPPTR         Might have to print current
+       BS   G95FC
+       ST   @CCPPTR,@FAC      Compute final position after size
+       ADD  @PABPTR+1,@FAC     in FAC and compare with record
+       DEC  @FAC
+       CH   @RECLEN,@FAC      Size clause too long
+       BR   G95FC
+* We can't get here for AT( , ) output, since right margin is
+* limited there
+       CALL OUTREC            Advance to next line
+       CALL SCRO              Scroll the screeen
+G95FC  SUB  @CCPPTR,@RECLEN   Limit field size to available
+       INC  @RECLEN            space... including current postion
+       CH   @PABPTR+1,@RECLEN
+       BR   INITZ1
+       ST   @PABPTR+1,@RECLEN Only accept if available
+       BR   INITZ1            Reinitialize CCPPTR
+* Copy (converted) numerical datum in string
+RSTRING ST  @FAC12,@BYTES+1   Get actual string length
+       CLR  @BYTES            Create double byte value
+       CALL CTSTR             Create a temporary string
+       MOVE @BYTES,*FAC11,V*SREF Copy value string
+       RTN
+* COMMOD - Compute FAC module FAC2
+COMMOD DIV  @FAC2,@FAC        Compute remainder
+       CZ   @FAC1             Avoid zero remainders
+       BR   G9624
+       ST   @FAC2,@FAC1       Assume maximum remainder
+G9624  CLR  @FAC              Clear upper byte
+       RTN
+* TSTSEP tests for separator in print and branches to the
+* correct evaluation routine.
+* If no separator is found, simple return.
+* Test case end of line
+TSTSEP CALL CHKEND                                          <<<<<<<<<<<<<<<<<<<<
+       BR   TSTSZ0                                          <<<<<<<<<<<<<<<<<<<<
+       DST  EOLEX,*SUBSTK     Replace return address with EOLEX <<<<<<<<<<<<<<<<
+TSTSZ0 CHE  COMMAZ,@CHAT                                    <<<<<<<<<<<<<<<<<<<<
+       BR   TSTSZ1
+       CH   COLONZ,@CHAT
+       BS   TSTSZ1
+       DST  PRSEM,*SUBSTK     Expect it to be a ";"         <<<<<<<<<<<<<<<<<<<<
+       CALL TSTINT            Test for INTERNAL files       <<<<<<<<<<<<<<<<<<<<
+       BR   TSTSZ1            Treat all separators as ";"   <<<<<<<<<<<<<<<<<<<<
+       CEQ  COMMAZ,@CHAT
+       BR   G964F
+       DST  PRTCOM,*SUBSTK                                  <<<<<<<<<<<<<<<<<<<<
+G964F  CEQ  COLONZ,@CHAT
+       BR   TSTSZ1
+       DST  PRCOL,*SUBSTK
+TSTSZ1 RTN
+* PARFN - Parse string expression and create PAB automatically
+*         continue in CSTRIN for copy string to PAB
+* Exit on non-string values
+*
+* First evaluate string expression
+PARFN  XML  PARSE             Parse up to next comma    <<<<<<<<<<<<<<<<<<<<<<<<
+       BYTE COMMAZ          *                           <<<<<<<<<<<<<<<<<<<<<<<<
+       CEQ  STRVAL,@FAC2      Check for "STRING"        <<<<<<<<<<<<<<<<<<<<<<<<
+       BR   ERRSNM
+       DST  @FAC6,@MNUM       Copy length byte in MNUM
+       ADD  PABLEN,@MNUM+1    Account for PAB length+control
+       XML  VPUSH             Save start of string somewhere
+       DST  @MNUM,@FAC        Setup for MEMCHK - check for
+       XML  MEMCHK             memory overflow
+       BS   ERRMEM            * MEMORY FULL
+       XML  VPOP              Restore all FAC information again
+       DSUB @MNUM,@FREPTR     Update free word pointer
+       DST  @FREPTR,@PABPTR   Assign PAB entry address
+       DINC @PABPTR           Correct for byte within PAB
+       CLR  V*PABPTR          Clear PAB plus control info
+       MOVE PABLEN-1,V*PABPTR,V@1(@PABPTR)  Ripple byte
+       ST   @MNUM+1,V@OFS(@PABPTR) Save length of PAB
+       ST   @FAC7,@MNUM       Compute # of bytes in name
+       ST   @FAC7,V@NLEN(@PABPTR) Store name length
+       ST   @FNUM,V@FIL(@PABPTR) Copy file number in PAB
+       DST  @PABPTR,@CCPADR   Get start addr for string destination
+       DADD NLEN+1,@CCPADR    Add offset to actual start addr
+* TRICKY - OPTFLG also results offset added in CSTRIN
+       CLR  @OPTFLG           Clear all option flags
+       XML  IO                CSTRIN I/O UTILITY
+       BYTE CSTRIN
+       RTN
+*************************************************************
+*                      OUTREC                               *
+* OUTREC and INITRC are used to output a record to either   *
+* screen or external I/O devices, and to initiate pointers  *
+* for further I/O.                                          *
+*************************************************************
+OUTREC ST   @RECLEN,@MNUM+1   Compute number of characters
+       INC  @MNUM+1            positions we should fill
+       CZ   @DSRFLG           Screen I/O
+       BS   G96D3
+       XML  IO                Fill the remainder of the record
+       BYTE FILSPC          *  with appropriate fillers
+       CLOG 8,@PABPTR           block output on size
+       BR   RTC
+       CLOG 4,@PABPTR         "AT CLAUSE USED"
+       BS   SCRO
+* Next test for xing the end of screen
+       DADD 4,@CCPADR
+       CHE  3,@CCPADR
+       BR   INITZ1
+       DST  2,@CCPADR         Restart at upper left hand
+*                              corner of screen
+INITZ1 ST   1,@CCPPTR         Reset current column pointer
+       RTN
+SCRO   XML  SCROLL            Scroll the screen one line
+       ST   1,@CCPPTR         Reinitialize CCPPTR
+       BR   INTKB0             and reinitialize
+* This is also entry for last record output
+G96D3  CLOG >10,V@FLG(@PABPTR) FIXED records
+       BR   G96E2
+       ST   @RECLEN,@MNUM+1   Ready for space filling
+       INC  @MNUM+1           Move to first position outside
+*                              record
+       XML  IO                And do it up to end of record
+       BYTE FILSPC
+G96E2  DEC  @CCPPTR           Update last character position
+       ST   @CCPPTR,V@CNT(@PABPTR) Store # of characters
+       CLR  V@OFS(@PABPTR)    Undo pending record offsets
+       CALL IOCALL            Call DSR
+       BYTE CZWRIT          *  for WRITE mode
+       CLR  @CCPADR+1         Get address at buffer start
+       BR   PRZZ0
+* PRINIT initializes the variable CCPADR, CCPPTR, RECLEN and
+* DSRFLG, for a given PABPTR.
+PRINIT CLR  @DSRFLG           Indicate external I/O in DSRFLG
+       ST   V@LEN(@PABPTR),@RECLEN  Pick up record length
+       ST   V@OFS(@PABPTR),@CCPADR+1 Get offset in record
+PRZZ0  ST   @CCPADR+1,@CCPPTR  Compute columnar position
+       INC  @CCPPTR           And convert from offset
+       CLR  @CCPADR           Clear upper byte
+       DADD V@BUF(@PABPTR),@CCPADR Compute actual address
+       RTN
+*************************************************************
+* OSTRNG - Copy the value of the string expression to the   *
+*          screen.                                          *
+*************************************************************
+OSTRNG ST   @FAC7,@BYTES      Pick up the string length
+G9711  CZ   @BYTES            Output as many records as required
+       BS   G973E
+* CHKREC check available space in current record.
+* If the string to be output is too long, it is chuncked up
+* into digestable pieces. If the current record is partly
+* filled up, it is output before any chuncking is done.
+CHKREC ST   @CCPPTR,@MNUM+1   Use MNUM for current offset indicator
+CHKRZ0 ST   @RECLEN,@MNUM     Compute remaining area
+       SUB  @CCPPTR,@MNUM      between column and end
+       INC  @MNUM             Also count current column
+       CHE  @BYTES,@MNUM      Won't fit in current record
+       BS   G9730
+       CEQ  1,@MNUM+1         Unused record
+       BS   CHKRZ1
+       CALL OUTREC            Output whatever we have
+       BR   CHKREC            And try again
+       RTN
+G9730  ST   @BYTES,@MNUM      Use actual count if fit
+CHKRZ1 SUB  @MNUM,@BYTES      Update remaining chars count
+       ADD  @MNUM,@CCPPTR     Also new column pointer
+       XML  IO                Copy string to output
+       BYTE CSTRIN
+       BR   G9711             Continue as long as needed
+G973E  RTN
+**************************************************************
+* INITKB - Initialize the variable needed for keyboard output*
+**************************************************************
+INITKB CLR  @PABPTR           Don't use any DISPLAY options
+       ST   OFFSET,@DSRFLG    Load for correction of screen char
+       ST   1,@CCPPTR         Assume un-initialized XPT
+       CH   2,@XPT            * Patch for un-initialized XPT
+       BR   G9751
+       ST   @XPT,@CCPPTR      Initialize CCPPTR
+       DECT @CCPPTR           Correct for incorrect XPT offset
+G9751  ST   VWIDTH,@RECLEN    Get video screen width
+INTKB0 ST   @CCPPTR,@CCPADR+1 Initialize screen address
+       CLR  @CCPADR           Clear upper byte CCPADR
+       DADD SCRNBS+1,@CCPADR  Add start-addr plus comenstator
+       RTN
+IOCALL FETCH @FAC12           I/O code to FAC12 (BUG!!!)
+       ST   @FAC12,V@COD(@PABPTR) Pick up the I/O code
+IOCLZ1 CALL CDSR              Call the DSR routine
+       BR   ERRZ2             Give I/O error on error
+       RTN                    Or else return
+* DSR CALL ROUTINE - NORMAL ENTRY
+CDSR   ST   OFFSET,V@SCR(@PABPTR)   Always set screen offset
+       MOVE 30,@FAC,V@>03C0   Save FAC area
+       DST  @PABPTR,@FAC12    Get PAB pointer in FAC
+       DADD NLEN,@FAC12       Get PAB pointer in FAC
+       AND  >1F,V@FLG(@PABPTR) Clear error bits for ON ERROR
+*                       time, I/O process can still be
+*                        continued
+       CALL CALDSR            Call actual DSR link routine
+       BYTE 8
+       MOVE 30,V@>03C0,@FAC
+* MOVE does not affect status
+       BS   CDSRZ0            ERROR = ERROR = ERROR
+       CLOG >E0,V@FLG(@PABPTR) Set COND if no error
+CDSRZ0 RTNC
+* ERROR MESSAGES
+ERRZ2B CALL CLRFRE            Undo allocation of PAB        <<<<<<<<<<<<<<<<<<<<
+* First check is it error coming from AUTOLD
+* If it is then do not print the error messege and
+*  go back to TOPL02
+ERRZ2  MOVE 2,G@TOPL02,V@AUTTMP                             <<<<<<<<<<<<<<<<<<<<
+       DCEQ V@AUTTMP,@RSTK+2                                <<<<<<<<<<<<<<<<<<<<
+       BR   G97A9                                           <<<<<<<<<<<<<<<<<<<<
+       ST   RSTK+2,@SUBSTK                                  <<<<<<<<<<<<<<<<<<<<
+       RTN                                                  <<<<<<<<<<<<<<<<<<<<
+*************************************************************
+* Next code is to avoid recursion of errors in CLSALL       *
+* routine. If this entry is taken from CLSALL, the stack    *
+* will contain CLSLBL as a retrun address in the third level*
+*************************************************************
+G97A9  SUB  4,@SUBSTK
+       DCEQ CLSLBL,*SUBSTK
+       BR   G97B8
+WRNIO  CALL WARNZZ            Give warning to the user
+       BYTE 35                * I/O ERROR but warning
+       RTN                    And return to close routine
+G97B8  ADD  4,@SUBSTK         Back up two levels for OLD/SAVE
+ERRIO  CALL ERRZZ
+       BYTE 36                * I/O ERROR
+* ERROR messages called in this file
+ERRSNM CALL ERRZZ
+       BYTE 7                 * STRING-NUMBER MISMATCH
+ERRIM  CALL ERRZZ
+       BYTE 10                * IMAGE ERROR
+ERRMEM CALL ERRZZ
+       BYTE 11                * MEMORY FULL
+ERRBV  CALL ERRZZ
+       BYTE 30                * BAD VALUE
+ERRINP CALL ERRZZ
+       BYTE 32                * INPUT ERROR
+ERRDAT CALL ERRZZ
+       BYTE 33                * DATA ERROR
+ERRFE  CALL ERRZZ
+       BYTE 34                * FILE ERROR
+ERRPV  CALL ERRZZ
+       BYTE 39                * PROTECTION VIOLATION        <<<<<<<<<<<<<<<<<<<<
+ERRMUV CALL ERRZZ
+       BYTE 9                 * IMPROPERLY USED NAME
+* Other errors called in file
+* ERRSYN    * SYNTAX ERROR                        BYTE  3
+* ERRST     * STRING TRUNCATED ERROR              BYTE 19
+* WRNNPP    * NO PROGRAM PRESENT                  BYTE 29
+* WRNINP    * INPUT ERROR            (WARNING)    BYTE 32
+* ERRIO     * I/O ERROR                           BYTE 36
+* WRNIO     * I/O ERROR              (WARNING)    BYTE 36
+* WRNSNM    * STRING NO. MISMATCH    (WARNING)    BYTE  7
+*************************************************************
+* The following section has been added to fix bugs in INPUT,*
+* ACCEPT, and LINPUT statements.                            *
+*************************************************************
+BUG01  CHE  >80,@CHAT         Make sure of variable name
+       BS   ERRSYN
+       XML  SYM               Get the information of the
+       XML  SMB                variable.
+       RTN
+********************************************************************************
+ 
+ 

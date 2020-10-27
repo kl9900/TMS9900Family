@@ -1,0 +1,388 @@
+ 
+ 
+       AORG >0E00
+ 
+* SPRITE SUBROUTINES BRANCH TABLE
+CHAR1  BR   SPNUM3            Called in CHARLY.    EXEC
+CHAR2  BR   SPNUM2            Called in CHARLY.    EXEC
+       BR   $                 Called in CHARLY.    EXEC
+* SUBROUTINE LINK LIST
+LINKS1 DATA LINKS2
+       STRI 'SPRITE'
+       DATA SPRTE
+LINKS2 DATA LINKS3
+       STRI 'DELSPRITE'
+       DATA SPRDEL
+LINKS3 DATA LINKS4
+       STRI 'POSITION'
+       DATA SPRPOS
+LINKS4 DATA LINKS5
+       STRI 'COINC'
+       DATA SPRCOI
+LINKS5 DATA LINKS6
+       STRI 'MAGNIFY'
+       DATA SPRMAG
+LINKS6 DATA LINKS7
+       STRI 'MOTION'
+       DATA SPRMOV
+LINKS7 DATA LINKS8
+       STRI 'LOCATE'
+       DATA SPRLOC
+LINKS8 DATA LINKS9
+       STRI 'PATTERN'
+       DATA SPRPAT
+LINKS9 DATA LINKSA
+       STRI 'DISTANCE'
+       DATA DIST
+LINKSA DATA LINKSB
+       STRI 'SAY'
+       DATA SAY
+LINKSB DATA LINKSC
+       STRI 'SPGET'
+       DATA SPGET
+LINKSC DATA ALC
+       STRI 'CHARSET'
+       DATA CHRSET
+ALC    EQU  >C010
+*************************************************************
+* CALL SPRITE(#SPRITE,CHAR,COLOR,Y,X,(YSPEED,XSPEED),...)   *
+*************************************************************
+SPRTE  CALL SPNUM1            Check sprite mode and skip "("
+       CALL SPNUM2            Get sprite number
+SPRT3  CALL SPCHR             Put character number for sprite
+       XML  SPEED
+       BYTE SYNCHK
+       BYTE COMMAZ         *  Check for comma and skip it
+       CALL GA01E             Put sprite color in SAL  (SPCOL)
+       XML  SPEED             Insure at a comma
+       BYTE SYNCHK
+       BYTE COMMAZ
+       CALL SPLOC             Put location of sprite in SAL
+       DST  @SP04+1,V*SPSAL   Put in location of sprite
+* Finish defining SAL. Check if velocity is specified
+SPRT4  CEQ  COMMAZ,@CHAT      Finished!!!!!
+       BR   GB0F2
+       XML  PGMCHR
+       CEQ  NUMBEZ,@CHAT      Next sprite specified
+       BR   GAEBB
+       CALL SPNUM3            Get the next sprite number
+       BR   SPRT3             And go!
+GAEBB  CALL SPMOVE            Get the velocity first
+       BR   SPRT4
+*************************************************************
+* CALL DELSPRITE(#SPR,.......)  or CALL DESPRITE(ALL)       *
+*************************************************************
+SPRDEL CALL SPNUM1            Insure at '('
+SPDEL1 XML  PGMCHR            Skip "(" or ","
+       CEQ  NUMBEZ,@CHAT      If sprite number
+       BR   GAEF6
+       XML  PGMCHR            Skip "#"
+       XML  PARSE             Parse the sprite number
+       BYTE RPARZ
+       CALL SPNUM4            Check and convert number
+       DCLR V@>0480(@SPSAL)   Stop motion if moving
+       DST  >C000,V*SPSAL     Hide the sprite off screen
+*-----------------------------------------------------------*
+* Add following 7 lines for speeding up XBASIC              *
+       CEQ  @MOTION,V@SPNUM   Check current sprite          *
+       BR   SPDEL2                                          *
+* no. against sprite motion count                           *
+* yes, change to as low as possible                         *
+GAEE1  DEC  @MOTION                                         *
+       BS   SPDEL2                                          *
+       DSUB 4,@SPSAL                                        *
+       DCZ  V@>0480(@SPSAL)                                 *
+       BS   GAEE1                                           *
+*-----------------------------------------------------------*
+SPDEL2 CEQ  COMMAZ,@CHAT      If more sprites
+       BS   SPDEL1
+       BR   GAEFD
+GAEF6  XML  SPEED             Must have 'ALL' else error
+       BYTE SYNCHK
+       BYTE ALLZ
+       CALL SPRINT            Reinitialize all sprites
+GAEFD  BR   GB0F2             Return to caller
+*************************************************************
+* CALL POSTION(#SPR,Y,X,...)                                *
+*************************************************************
+SPRPOS CALL SPNUM1            Check for sprites and skip "("
+SPRP02 CALL SPNUM2            Check sprite number
+       CALL PREPN             Prepare Y-position return variable
+       XML  SPEED             Insure at a comma
+       BYTE SYNCHK
+       BYTE COMMAZ
+       DST  V*SPSAL,@SP00     Read X, Y position
+       ST   @SP00,@FAC1       Get Y position
+       CEQ  >FE,@FAC1
+       BR   GAF1C
+       DINCT @FAC             Get 256 as an output
+       BR   GAF1E
+GAF1C  INCT @FAC1             Regular adjustment for user
+GAF1E  CALL SPRP03            Check, convert & assign value
+       CALL PREPN             Prepare X-pos return variable
+       ST   @SP00+1,@FAC1     Get X position
+       DINC @FAC              Adjust for the user
+       CALL SPRP03            Check, convert & assign value
+       CEQ  COMMAZ,@CHAT      If not finished
+       BS   SPRP02
+       BR   GB0F2             Return
+SPRP03 XML  CIF               Convert integer to float
+       DCEQ >C000,@SP00       If hidden sprite
+       BR   GAF3D
+       DCLR @FAC              Return value zero
+GAF3D  XML  ASSGNV            Assign to variable
+       RTN
+*************************************************************
+* CALL COINC(#SPR,#SPR,TOLERANCE,CODE)                      *
+* CALL COINC(#SPR,YLOC,XLOC,TOLERANCE,CODE)                 *
+* CALL COINC(ALL)                                           *
+*************************************************************
+SPRCOI CALL SPNUM1
+       XML  PGMCHR            Skip "("
+       CEQ  ALLZ,@CHAT        Check coinc of all sprites
+       BR   GAF56
+       XML  PGMCHR            Skip "ALL"
+       CALL COMMA2            Check and skip ","
+       CLOG >20,@VDPSTT       Check VDP status
+       BS   NULRTN
+       BR   GAF6C
+GAF56  CALL CODIST            Get distance of 2 sprites
+       CALL COMMA             Get tolerance level
+       XML  SPEED
+       BYTE RANGE           * Check against range
+       BYTE 0               * FAC has tolerance level
+       DATA 255
+       DCH  @FAC,@SP00        Y-loc out of range
+       BS   NULRTN
+       DCH  @FAC,@SP04        X-loc out of range
+       BS   NULRTN
+* If no conincidence just return zero
+GAF6C  CALL PREPN             Prepare for numeric output
+       DST  >BFFF,@FAC        Store -1 in FAC
+       BR   ASSRTN
+*************************************************************
+* CALL MAGNIFY(magnification factor=1 - 4)                  *
+*************************************************************
+SPRMAG CALL SPNUM1            Insure at "("
+       XML  PGMCHR            Skip the "("
+       XML  PARSE             Parse the magnification factor
+       BYTE RPARZ
+       XML  SPEED
+       BYTE RANGE
+       BYTE 1
+       DATA 4
+* Next statement adding >DF to subtract 1 from FAC
+       ADD  >DF,@FAC1         Turn on screen and interrupt
+       MOVE 1,@FAC1,#1        Store it to VDP register 1
+       BR   GB0F2
+*************************************************************
+* CALL MOTION(#SPR,YSPEED,XSPEED,...)                       *
+*************************************************************
+SPRMOV CALL SPNUM1            Insure at "("
+SPRMV2 CALL SPNUM2            Get sprite number
+       CALL SPMOVE            Store velocity
+       CEQ  COMMAZ,@CHAT      Loop if more
+       BS   SPRMV2
+       BR   GB0F2
+*************************************************************
+* CALL LOCATE(#SPR,YLOC,XLOC,...)                           *
+*************************************************************
+SPRLOC CALL SPNUM1            Insure at "("
+SPRLC2 CALL SPNUM2            Check sprite number
+       CALL SPLOC             Read location
+       DST  @SP04+1,V*SPSAL   Put in sprite location
+       CEQ  COMMAZ,@CHAT      Loop if more
+       BS   SPRLC2
+       BR   GB0F2
+*************************************************************
+* CALL PATTERN(#SPR,CHAR,...)                               *
+*************************************************************
+SPRPAT CALL SPNUM1            Insure at "("
+SPRPT2 CALL SPNUM2            Get sprite number
+       CALL SPCHR             Set the sprite character
+       CEQ  COMMAZ,@CHAT      Loop if more
+       BS   SPRPT2
+       BR   GB0F2
+*************************************************************
+* CALL DISTANCE(#1,#2,DISTANCE)                             *
+* CALL DISTANCE(#1,Y,X,DISTANCE)                            *
+*************************************************************
+DIST   CALL SPNUM1            Insure at "("
+       XML  PGMCHR            Skip "("
+       CALL CODIST            Get distance in Y and X
+       CALL PREPN             Prepare return variable
+       DMUL @SP00,@SP00       X=X*X
+       DMUL @SP04,@SP04       Y=Y*Y
+       DADD @SP06,@SP02       @SP02=X*X+Y*Y
+       OVF                    Checking overflow bit
+       BS   OVER              If overflow-indicate maximum
+       DST  @SP02,@FAC        Put distance squared in FAC
+       DCH  >7FFF,@SP02       If bigger then 128
+       BR   GAFE5
+OVER   DST  >7FFF,@FAC        Put maximum value
+GAFE5  XML  CIF               Convert to floating format
+       BR   ASSRTN            Assign value and return
+*************************************************************
+* CODIST routine gets locations of two sprites or one       *
+*  sprite and Y and X position specified by a user and      *
+*  calculates absolute value of Y and X distance.           *
+*************************************************************
+CODIST CLR  @SP00
+       MOVE 7,@SP00,@SP00+1   Clear up first 8 bytes
+       CEQ  NUMBEZ,@CHAT      Check for #
+       BR   ERRSYN
+       CALL SPNUM3            Get the first sprite
+       DST  V*SPSAL,@SP00+1   Location of first sprite
+       INC  @SP00+1           Increment to make range 1-256
+       ST   @SP02,@SP02+1     Put X in SP02+1
+       CLR  @SP02             Y in SP00+1
+       CEQ  NUMBEZ,@CHAT      Get 2nd sprite
+       BR   GB011
+       CALL SPNUM3            Get the next sprite
+       DST  V*SPSAL,@SP04+1   Location of second sprite
+       BR   GB017
+GB011  CALL SPLOC             Get Y and X location
+       CALL COMMA2            Check for comma and skip
+GB017  INC  @SP04+1           Increment to make range 1-256
+       DSUB @SP04,@SP00       Difference in Y at SP00
+       DABS @SP00             Get absolute value
+       CLR  @SP04+1           Clear byte before X
+       DSUB @SP02,@SP04+1     Difference in Y at SP04
+       DABS @SP04+1           get the absolute value
+       ST   @SP06,@SP04+1     Put in the right place
+       RTN
+*************************************************************
+* CHRSET restores the standard character set and the        *
+*  standard colors for the standard character set           *
+*  (black on transparent)                                   *
+*************************************************************
+CHRSET CALL CHKEND            Must be at EOS now
+       BR   ERRSYN            Else its and error
+       DST  >0400,@FAC        Want to load chars at >0400
+       CALL CHAR2Z            Call monitor routine to load
+       ST   >10,V@>080F       Set 1st set to black on tranparent
+       MOVE 16,V@>080F,V@>0810  Ripple for rest
+       CALL RPL               Return to the caller
+******************************
+* SPNUM1 ROUTINE             *
+******************************
+SPNUM1 CEQ  LPARZ,@CHAT       Should be "("
+       BR   ERRSYN
+       RTN
+******************************
+* SPNUM2 ROUTINE             *
+******************************
+SPNUM2 XML  PGMCHR            Get the next character
+       CEQ  NUMBEZ,@CHAT      Must be "#"
+       BR   ERRSYN
+SPNUM3 XML  PGMCHR            Get next character
+       CALL COMMA             Parse up to comma and skip it
+SPNUM4 XML  SPEED
+       BYTE RANGE           * Verify the value is in range
+       BYTE 1               * Sprite number 1 - 28
+       DATA 28
+*-----------------------------------------------------------*
+* Insert a line here in sprite handling code for speeeding  *
+*  up XB    5/22/81                                         *
+       ST   @FAC1,V@SPNUM     Keep sprite number            *
+*-----------------------------------------------------------*
+       DEC  @FAC1             Adjust for internal use
+       DSLL 2,@FAC            Get location of SAL
+       DADD >0300,@FAC        Sprite # * 4 + >0300
+       DST  @FAC,@SPSAL       Save SAL location
+       RTN
+******************************
+* SPLOC ROUTINE              *
+******************************
+SPLOC  CALL COMMA             Parse up to comma and skip it
+       XML  SPEED
+       BYTE RANGE           * Range of Y: 1 - 256
+       BYTE 1
+       DATA 256
+       DECT @FAC1             Adjust for internal use: FF - 1
+       DST  @FAC,@SP04        Store in SP04 area
+       XML  PARSE
+       BYTE RPARZ           * Parse to ")" or less
+       XML  SPEED
+       BYTE RANGE           * Get X value. Range: 1 - 256
+       BYTE 1
+       DATA 256
+       DEC  @FAC1             Adjust for internal use: 0 - 255
+       ST   @FAC1,@SP06       SP04+1=Y-loc and SP06=X-loc
+       RTN
+******************************
+* SPCHR ROUTINE              *
+******************************
+SPCHR  XML  PARSE
+       BYTE RPARZ
+       XML  SPEED
+       BYTE RANGE           * Check upper range
+       BYTE 32              * Character value 32 - 144
+       DATA 143
+       ADD  >60,@FAC1         Add offset to character number
+       ST   @FAC1,V@2(@SPSAL) Store the character value
+       RTN
+******************************
+* SPMOVE ROUTINE             *
+******************************
+SPMOVE CALL COMMA             Parse up to comma and skip
+       CALL RANGEV            Check if numeric and convert
+*                              to integer
+       ST   @FAC1,@SPTMP      Store Y velocity
+       XML  PARSE             Get X velocity
+       BYTE RPARZ           * Check for ")" or less
+       CALL RANGEV            Numeric check and convert
+*                              to integer
+       ST   @SPTMP,@FAC     * @FAC=Y velocity, @FAC1=X velocity
+       DST  @FAC,V@>0480(@SPSAL)  Store velocities in SAL
+*-----------------------------------------------------------*
+* Add the following 3 lines for speeding up XB              *
+       CH   @MOTION,V@SPNUM   Check current sprite          *
+       BR   GB0BD              against sprite motion        *
+*                                counter                    *
+       ST   V@SPNUM,@MOTION       higher? Yes, replace it   *
+*-----------------------------------------------------------*
+GB0BD  RTN
+RANGEV CH   >63,@FAC2         The same as INTARG
+       BS   ERRSNM
+       CLR  @FAC10
+       DCLR @FPERAD
+       XML  FLTINT
+       CZ   @FAC10
+       BR   ERRBV
+       DCGE 0,@FAC            If positive number,
+       BR   GB0DB
+       DCH  >007F,@FAC         should be 0 - 127
+       BS   ERRBV
+       BR   GB0E1             If negative number,
+GB0DB  DCHE >FF80,@FAC         Should be -1 to -128
+       BR   ERRBV
+GB0E1  RTN                    Otherwise its ok.
+******************************
+* COMMA ROUTINE              *
+******************************
+COMMA  XML  PARSE
+       BYTE COMMAZ
+COMMA2 CEQ  COMMAZ,@CHAT
+       BR   ERRSYN
+       XML  PGMCHR            Get next character
+       RTN
+******************************
+* LINK BACK TO XB            *
+******************************
+NULRTN CALL PREPN
+ASSRTN XML  ASSGNV
+GB0F2  B    GA01C                               (LNKRTN)
+*******************************
+* PREPARE FOR PASSING ARGUMENT*
+*******************************
+PREPN  XML  SYM               Pick up name & search table
+       XML  SMB               Evaluate any subscripts
+       CH   >63,@FAC2         If not numeric, error
+       BS   ERRIAL
+       XML  VPUSH             Save entry on stack
+       CLR  @FAC              Clear FAC for new value
+       MOVE 7,@FAC,@FAC1
+       RTN
+ 
+ 

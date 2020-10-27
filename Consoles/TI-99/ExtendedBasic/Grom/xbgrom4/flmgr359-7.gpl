@@ -1,0 +1,278 @@
+ 
+ 
+ 
+*************************************************************
+*                   MERGE ROUTINE                           *
+* MERGE load a file which is in crunched program form into  *
+* the CRNBUF one record (one in) at a time then take the    *
+* line # out in FAC, text length into @CHAT, and edit it    *
+* into the program. Identify EOF by the last record which   *
+* is set up at SAVE time.                                   *
+*************************************************************
+MERGE  CALL GPNAME            Close all file, set up PAB     <<<<<<<<<<<<<<<<<<<
+       CLOG >80,@FLAG         Check PROTECTION VIOLATION     <<<<<<<<<<<<<<<<<<<
+       BR   ERRPV
+* To fix the bug #06 in MERGE
+       XML  PGMCHR            Check EOL
+       CZ   @CHAT
+       BR   ERRSYN            Not EOL : SYNTAX ERROR
+* Open the file with
+*  I/O opcode            : OPEN
+*  File type             : SEQUENTIAL file
+*  Mode of operation     : INPUT
+*  Data type             : DISPLAY type data
+*  Record type           : VARIABLE LENGTH records
+*  Data buffer address   : crunch address
+*  Logical record length : 163 maximum
+       MOVE 9,G@PAB1,V@4(@PABPTR)  Set up PAB
+       INCT V@FLG(@PABPTR)    Put in correct I/O mode : >14
+       CALL IOCLZ1            Call the device service routine
+*                              to open the file
+       CALL IOCALL            Call the device service routine
+       BYTE CZREAD          *  to read
+       DCEQ >FFFF,V@CRNBUF    If 1st rec is EOF
+       BS   ERRZ2B
+G902A  DCLR @>83D6            Read in one line and edit it to  <<<<<<<<<<<<<<<<<
+*                              program
+       ST   V@CNT(@PABPTR),@CHAT Length of this record
+       DECT @CHAT             Text length = total length-2
+*                                          (line # length)
+*                              Put it in @CHAT for EDITLN
+       DST  V@CRNBUF,@FAC     Put the line # in @FAC for EDITLN
+       CLR  @FAC12            Make it a double byte
+       ST   @CHAT,@FAC13
+* Move the text up 2 bytes
+       MOVE @FAC12,V@CRNBUF+2,V@CRNBUF                           <<<<<<<<<<<<<<<
+       DST  @PABPTR,V@MRGPAB  SAVE PAB POINTER
+       CALL EDITLN            EDIT IT TO THE PROGRAM            <<<<<<<<<<<<<<<<
+       DCLR @PABPTR           Clear temporary PAB pointer       <<<<<<<<<<<<<<<<
+       DEX  V@MRGPAB,@PABPTR  Restore old PAB pointer
+       CALL IOCALL            CALL THE DEVICE SERVICE ROUTINE
+       BYTE CZREAD          *  read another record or another
+*                              line
+       DCEQ >FFFF,V@CRNBUF    End of EOF
+       BR   G902A
+* Double check EOF record
+MERGZ1 CEQ  2,V@CNT(@PABPTR)  I/O ERROR
+       BR   ERRZ2B
+       CALL IOCALL            Call the device service routine
+       BYTE CZCLOS          *  close the file
+       BR   LRTOPL            Go back to top level
+*************************************************************
+*                  LIST ROUTINE                             *
+* List lists a readable copy of the current program imnage  *
+* to the specified device. In case no device is specified,  *
+* the listing is copied to the screen.                      *
+*  This routine uses the fact that ERRZZ returns to the     *
+* caller if the call has been issued in EDIT which will     *
+* reinitiate the variable stuff.                            *
+*************************************************************
+LIST   CLOG >80,@FLAG         PROTECTION VILOATION ERROR  <<<<<<<<<<<<<<<<<<<<
+       BR   ERRPV                                         <<<<<<<<<<<<<<<<<<<<<<
+       DCLR @CURLIN           Create some kind of control <<<<<<<<<<<<<<<<<<<<<<
+       DCLR @CURINC            for defaults               <<<<<<<<<<<<<<<<<<<<<<
+       ST   MINUS,@VARC       Select "-" as separator     <<<<<<<<<<<<<<<<<<<<<<
+       CALL AUTO1             Pick up any availiable arguments
+* If either CURLIN or CURINC is non-zero, use it
+* For zero values replace the default (ENLN-3, STLN)
+       DCZ  @CURLIN
+       BR   G9094
+       DST  @ENLN,@DDD1       Get the first lines line #    <<<<<<<<<<<<<<<<<<<<
+       DSUB 3,@DDD1           DDD1 : Source address on ERAM/VDP
+       CALL GRSUB3            Read the line # from ERAM/VDP
+       BYTE DDD1            * @DDD1 : Source address on ERAM/VDP
+*                             Reset possible breakpoint too
+       DST @EEE1,@CURLIN      Use standard default
+       DCZ @CURINC
+       BR  G9094
+LISTZ0 CALL GRSUB3            Read last line # from ERAM/VDP
+       BYTE STLN           *  @STLN : Source address on ERAM/VDP
+*                             Reset possible breakpoint too
+       DST  @EEE1,@CURINC     @EEE1 : Destination address on ERAM/VDP
+*                             Also default for end line
+* Now first evaluate what we've got in CURLIN
+G9094  DCZ  @CURINC           Check for combination xxx-
+       BR   G90A6
+G9098  DDEC @VARW             Backup to the separation mark
+       CEQ  SPACE+OFFSET,V*VARW
+       BS   G9098
+       CEQ  MINUS+OFFSET,V*VARW Select last
+       BS   LISTZ0
+G90A6  DCHE @CURLIN,@CURINC   If something like LIST 15-11
+       BS   G90AE
+       DST  @CURLIN,@CURINC   Replace byt LIST 15-15
+G90AE  DST  @CURLIN,@FAC      Prepare for line # search
+       XML  SPEED             Search the line number table
+       BYTE SEETWO
+       DST  @EXTRAM,@CURLIN   Get first real line # in CURLIN
+       DST  @CURINC,@FAC
+       XML  SPEED
+       BYTE SEETWO          * Evaluate second line #
+       CALL GRSUB3            Read 2 bytes of data from ERAM/VDP
+       BYTE EXTRAM          * @EXTRAM : Source addr on ERAM/VDP
+*                             Reset possible breakpoint too
+       DCH  @CURINC,@EEE1
+       BR   G90CA
+       DADD 4,@EXTRAM         Else take next lower line
+G90CA  DST  @EXTRAM,@CURINC   Which could be equal to CURLIN
+       DST  @CURLIN,@EXTRAM   For use below by LIST
+       DDEC @PGMPTR           Backup to last CHAT
+       XML  PGMCHR            Retrieve last CHAT
+       CZ   @CHAT             Device name available
+       BS   G9132
+       CALL CLSALL            Close all files that are open
+       DST  VRAMVS,@VSPTR     Re-initialize the V-stack
+       DST  @VSPTR,@STVSPT    And it's base
+       XML  PGMCHR            Get name length in CHAT
+       DST  VRAMVS+16,@PABPTR Get entrypoint in PAB
+       CLR  @DSRFLG           Indicate device I/O
+       MOVE 9,G@PAB,V@4(@PABPTR)
+       DST  VRAMVS+16+NLEN,@CCPADR Select start address
+*                                   for copy
+       ST   @CHAT,@FAC2       Number of characters to copy
+       INC  @FAC2             Plus length byte
+LISTZ1 ST   @CHAT,V*CCPADR    Copy the bytes one by one
+       XML  PGMCHR            Get next character
+       DINC @CCPADR           CCPADR ends up with highest address
+       DEC  @FAC2             Count total # of characters
+       BR   LISTZ1
+       CALL IOCLZ1            Preform OPEN on DSR
+       CLR  @FAC              Create double byte PAB length
+       ST   V@LEN(@PABPTR),@RECLEN Get record length
+       ST   @RECLEN,@FAC1     Get highest address used
+       DADD @CCPADR,@FAC      Compute record length
+       DST  @CCPADR,V@BUF(@PABPTR) Store it
+       CZ   @RAMTOP           If ERAM exists then           <<<<<<<<<<<<<<<<<<<<
+       BS   G9128                                           <<<<<<<<<<<<<<<<<<<<
+       DCH  @>8370,@FAC       Compare with top of           <<<<<<<<<<<<<<<<<<<<
+*                    VDP : if higher then 'not enough room'
+       BS   ERRIO                                           <<<<<<<<<<<<<<<<<<<<
+       BR   G912D                                           <<<<<<<<<<<<<<<<<<<<
+G9128  DCH  @STLN,@FAC        Not enough room               <<<<<<<<<<<<<<<<<<<<
+       BS   ERRIO
+G912D  ST   1,@CCPPTR         Clear first line in output
+       BR   G9138
+G9132  ST   VWIDTH+3,@XPT     For common code usage
+       CALL INITKB            Reset current record length
+G9138  CZ   @RAMTOP           If ERAM exist then            <<<<<<<<<<<<<<<<<<<<
+       BS   G9140                                           <<<<<<<<<<<<<<<<<<<<
+       CALL GRMLST            Fake it : move each line to the <<<<<<<<<<<<<<<<<<
+*                              CRUNCH buffer form ERAM
+G9140  CALL LLIST             List the current line          <<<<<<<<<<<<<<<<<<<
+       SCAN                   Test for a break key
+       BR   LISTZ3            No key
+       CEQ  BREAK,@RKEY
+       BS   LISTZ4
+LISTZ5 SCAN
+       BR   LISTZ5
+LISTZ3 CZ   @RAMTOP           If ERAM exists
+       BS   G9156
+       DST  @FAC14,@EXTRAM    Restore the @EXTRAM
+G9156  DSUB 4,@EXTRAM         Pointer to next line
+       DCH  @EXTRAM,@CURINC   Display all lines in range
+       BR   G9138
+LISTZ4 CZ   @DSRFLG           Device I/O -> output last record
+       BR   G916D
+       CALL OUTREC            Output the last record
+       CALL IOCALL            Close the device properly
+       BYTE CZCLOS
+       B    TOPL10
+G916D  B    TOPL15            Restart the variable too
+* PAB image used in LIST function
+PAB    BYTE 0,>12,0,0,0,0,0,0,OFFSET
+* Move each line in ERAM to CRNBUF area, put line number in
+* (CRNBUF), put CRNBUF+4 in (CRNBUF+2) which is the line
+* pointer field, put the text itself from ERAM to (CRNBUF+4),
+* before call LLIST, trick it by moving CRNBUF to @EXTRAM
+GRMLST CALL GRSUB3            Get line # from ERAM(use GREAD1)
+       BYTE EXTRAM          * @EXTRAM : Source address on ERAM
+*                             Reset possible breakpoint too
+       DST  @EEE1,V@CRNBUF    Put it in CRNBUF
+       DST  CRNBUF+4,V@CRNBUF+2 Put CRNBUF+4 into
+*                              the line pointer field
+       DINCT @DDD1            Get the pointer to the text
+*                              from GRAM
+       CALL GRSUB4            Read the line pointer in (use
+*                              GREAD1)
+       DDEC @EEE1             Get the ptr to the length byte
+       CALL GRSUB2            Read th length from ERAM, use
+       BYTE EEE1           *   GREAD1, @EEE1 : Source address
+*                               on ERAM
+       ST   @EEE1,@FFF1+1     Use the length as byte count
+*                             to move the text from ERAM to
+*                             VDP CRNBUF+4 area
+       DST  CRNBUF+4,@EEE1    EEE1 : Destination address on VDP
+       DINC @DDD1             DDD1 : Source address on ERAM
+       XML  GVWITE            Move data from ERAM to VDP
+       DST  @EXTRAM,@FAC14    Save for later use
+       DST  CRNBUF,@EXTRAM    Fake it
+       RTN
+* SUBROUTINE TO READ 2 BYTES OF DATA FROM ERAM OR VDP WITH
+* THE OPTION TO RESET THE POSSIBLE BREAKPOINT
+GRSUB2 FETCH @FFF1            Fetch the source address on
+       DST  *FFF1,@DDD1        ERAM or VDP
+*                             @DDD1 : Source addr  on ERAM
+*                             or VDP
+GRSUB4 CZ   @RAMTOP           If ERAM exists
+       BS   G91B7
+       DST  2,@FFF1           @FFF1 : Byte count
+       XML  GREAD1            Read data from ERAM to CPU
+       BR   G91BB
+G91B7  DST  V*DDD1,@EEE1      Read data from VDP to CPU
+G91BB  RTN
+GRSUB3 FETCH @FFF1            Fetch the source addr on ERAM
+       DST  *FFF1,@DDD1        or VDP
+*                             @DDD1 : Source addr on ERAM/VDP
+       CALL GRSUB4            Do the actual read
+       DAND >7FFF,@EEE1       Reset possible breakpoint
+       RTN
+*********** REC ROUTINE *************************************
+* REC(X) returns the current record to which file X is
+*  positioned.
+SUBREC DST  @PABPTR,@ARG      Save the current PAB & set new one
+       CALL SUBEOF            Try to find the correct PAB
+       DEX  @PABPTR,@ARG      @ARG : new PAB
+*                             @PABPTR : restore current PAB
+       BR   EOFZ2             Didn't find the corresponding PAB
+       DST  V@RNM(@ARG),@FAC  Obtain integer record number
+       XML  CIF               Convert integer to floating
+       XML  CONT               and continue
+*************************************************************
+*                         EOF ROUTINE                       *
+* EOF(X) returns status codes on file X. The meaning of the *
+* result codes is:                                          *
+*           -1  Physical End Of File                        *
+*            0  Not at End Of File yet                      *
+*            1  Logical End Of File                         *
+*************************************************************
+EOF    DST  @PABPTR,@ARG      Save the current PAB and set
+*                              the new one in SUBEOF
+       CALL SUBEOF            Try to find the PAB somewhere
+       BR   ERRFE             Can't file
+       ST   CZSTAT,@ARG2      Select status code without
+       EX   @ARG2,V@COD(@PABPTR) destorying original code
+       CALL IOCLZ1            Get the info from DSR
+       DEX  @ARG,@PABPTR      Restore original PAB and original
+       ST   @ARG2,V@COD(@ARG)  I/O code
+       ST   V@SCR(@ARG),@ARG2 And pick up STATUS
+       MOVE 8,G@FLOAT1,@FAC   Get floating 1
+       CLOG 3,@ARG2           Test EOF bits
+       BS   EOFZ2             No EOF indication
+       CLOG 2,@ARG2           Physical EOF
+       BS   G9210
+       DNEG @FAC              Make result -1
+G9210  XML  CONT
+EOFZ2  DCLR @FAC              Create result 0
+       XML  CONT
+FLOAT1 BYTE >40,1,0,0,0,0,0,0   * Floating point -1
+SUBEOF CEQ  LPARZ,@CHAT       * SYNTAX ERROR
+       BR   ERRSYN
+       XML  PARSE             Parse up to the matching ")"
+       BYTE >FF
+       CALL CHKCNV            Convert and search for PAB
+       BS   ERRBV             Avoid 0's and negatives bad value!
+       ST   @DSRFLG,@ARG6     @DSRFLG got changed in CHKCON
+       CALL CHKCON            Check and search tiven filenumber
+       ST   @ARG6,@DSRFLG     @DSRFLG to changed CHKCON
+       RTNC                   Condition set : file # exists
+ 

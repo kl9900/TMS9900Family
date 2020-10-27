@@ -1,0 +1,367 @@
+ 
+ 
+ 
+*************************************************************
+*                SUBPROGRAM FOR 'HCHAR'                     *
+*************************************************************
+HCHAR  CALL HVCHR             Get X, Y values character, # of chars
+       DCZ  @FAC              If 0 characters
+       BS   XPTRTN
+HCHAR1 BYTE >08,>E0,>00,>FB  * FMT '@VAR0'   Display horizontally
+       DDEC @FAC              Done yet?
+       BR   HCHAR1            No, finish it
+XPTRTN ST   @MNUM,@XPT        Restore X-pointer
+LNKRTN XML  SPEED             Must be at
+       BYTE SYNCHK        *     a right
+       BYTE RPARZ         *      parenthesis
+LNKRT2 CALL CHKEND            Check end of statement
+       BR   ERRSYN            If not end-of-stmt , error
+       CALL RPL               Return to caller
+*************************************************************
+*                SUBPROGRAM FOR 'VCHAR'                     *
+*************************************************************
+VCHAR  CALL HVCHR             Get X, Y values character, # of chars
+       DCZ  @FAC              If 0 characters
+       BS   XPTRTN
+VCHAR1 BYTE >08,>E0,>00,>9E,>FB * FMT '@VAR0',>31 Display vertically
+       DDEC @FAC              Done yet?
+       BS   XPTRTN            Yes, return
+       CZ   @YPT              If not at start of colunm
+       BR   VCHAR1
+       INC  @XPT              Move X-ptr to right one colunm
+       B    VCHAR1
+*************************************************************
+*               SUBPROGRAM FOR 'CHAR'                       *
+*************************************************************
+CHARLY CALL COMB
+CHAR5  XML  PGMCHR            Skip "(" or ","
+       XML  SPEED             Get the first value
+       BYTE PARCOM         *    and insure a comma
+       XML  SPEED             Insure in range
+       BYTE RANGE          *   of 32 - 143
+       BYTE 32
+       DATA 143
+       DSLL 3,@FAC            Convert chr number to address
+       DADD >0300,@FAC        CORRECT FOR OFFSET
+       DST  @FAC,@VARY        Save it
+       XML  PARSE             Get string
+       BYTE RPARZ
+       CEQ  >65,@FAC2         MUST BE STRING
+       BR   ERRSNM
+       MOVE 4,@FAC4,@VAR5     VAR5 pointer to string value
+* Start defining character description.
+*    VARY    Address of RAM for character description.
+*    VAR5    Pointer to string value.
+*    VAR7    Length of string value.
+*    VAR9    Temporary counter.
+*    VAR9+1  Temporary counter.
+       DCH  64,@VAR7          Max 4 characters at a time    <<<<<<<<<<<<<<<<<<<<
+       BR   CHAR40
+       DST  64,@VAR7          IGNORE THE EXCESSES
+CHAR40 DCHE SPRVB,@VARY       Don't have space for
+       BS   CHARL4
+       ST   ZERO,@FAC         Floating Point Accumulator (>30)
+       MOVE 15,@FAC,@FAC1
+       DCZ  @VAR7             Fill with zero
+       BS   CHAR50
+       DCHE 16,@VAR7
+       BS   GAB6B
+       MOVE @VAR7,V*VAR5,@FAC Move whatever
+       DCLR @VAR7
+       BR   CHAR50
+GAB6B  MOVE 16,V*VAR5,@FAC    Move one character
+       DSUB 16,@VAR7          Less num of bytes to move
+       DADD 16,@VAR5          Move pointer
+CHAR50 ST   >4A,@VAR9         Move pointer (>4A=FAC)
+       ST   1,@VAR9+1
+       B    GAB84
+GAB82  INC  @VAR9+1
+GAB84  CGT  8,@VAR9+1
+       BS   GABC3
+       CLR  @BYTES            Clear dot-building byte
+CHARL2 SLL  4,@BYTES          For loop(2 chars per byte)
+       ST   *VAR9,@ARG
+       CHE  ZERO,@ARG         If < 0
+       BR   ERRBV
+       CGT  NINE,@ARG         If in 0-9
+       BR   CHARL3
+       CHE  A,@ARG            If > 9 but < A
+       BR   ERRBV
+       CH   F,@ARG            If > F
+       BS   ERRBV
+CHARL3 SUB  ZERO,@ARG         Character - >30
+       CH   10,@ARG           If in A-F
+       BR   GABB1
+       SUB  7,@ARG            Correct for that too
+GABB1  OR   @ARG,@BYTES       Dot expression
+       INC  @VAR9
+       CLOG 1,@VAR9           1st half of row finished?
+       BR   CHARL2            Yes, do 2nd half
+*                              (each takes half byte)
+       ST   @BYTES,V*VARY     Load characters
+       DINC @VARY
+       BR   GAB82             Load characters on next row
+GABC3  DCZ  @VAR7             More char to describe
+       BR   CHAR40
+CHARL4 CEQ  COMMAZ,@CHAT      More specified?
+       BS   CHAR5
+       BR   LNKRTN            Return
+*************************************************************
+*              SUBPROGRAM FOR 'KEY'                         *
+*************************************************************
+KEY    CALL LPAR              GET KEY UNIT
+       XML  SPEED             Insure in range
+       BYTE RANGE          *   of 0 - 5
+       BYTE 0
+       DATA 5
+       CALL KEYJOY            Get variables for code and status
+*                              and scan keyboard
+*                             KEYJOY returns key status
+       BS   KEY1B             KEY STATUS = 1
+       DNEG @FAC              Assume status = -1
+       CEQ  >FF,@RKEY         But correct if = 0
+       BR   KEY1B
+       DCLR @FAC              KEY STATUS = 0
+KEY1B  XML  ASSGNV            Assign value in variable
+       DST  >4001,@FAC        Re-store F.P. 1 in FAC
+       CZ   @RKEY             If key-code = 0
+       BS   KEY2
+       CEQ  >FF,@RKEY         No key depressed,
+       BS   KEY1C              key code assigned to -1
+* FORMAT FOR KEYCODES ABOVE 99 ADDED FOR 99/4A HIGHEST
+* KEYCODE (OTHER THAN >FF) IS >C6=198
+* 5/7/81
+       CHE  100,@RKEY
+       BR   GAC04
+       INC  @FAC
+       SUB  100,@RKEY
+       ST   @RKEY,@FAC2       FLOATING FORMAT (>4001__000000000)
+       B    GAC07
+GAC04  ST   @RKEY,@FAC1       FLOATING FORMAT (>40__00000000000)
+GAC07  BR   KEY2A
+KEY1C  DNEG @FAC              KEY CODE ASSIGNED TO -1
+       BR   KEY2A
+KEY2   DCLR @FAC              (>000000000000000)
+KEY2A  XML  ASSGNV            ASSIGN VALUE TO VARIABLE
+       BR   LNKRTN
+*************************************************************
+*                  SUBPROGRAM FOR 'JOYSTICK'                *
+*************************************************************
+JOYST  CALL LPAR              KEY UNIT
+       XML  SPEED             Insure in range
+       BYTE RANGE          *   of 1 - 4
+       BYTE 1
+       DATA 4
+       CALL KEYJOY            GET VARIABLES FOR X, Y
+*                              AND SCAN KEYBOARD
+       ST   @JOYY,@VAR0       JOYSTICK Y POSITION
+       CALL JOYXY             -4 to +4
+       DST  >4001,@FAC        Re-store F.P. 1 in FAC
+       ST   @JOYX,@VAR0       JOYSTICK X POSITION
+       CALL JOYXY             -4 to +4
+       BR   LNKRTN
+*************************************************************
+* INSURE LEFT PARENTHESIS AND THEN PARSE TO A COMMA         *
+*************************************************************
+LPAR   XML  SPEED             Must be                       <<<<<<<<<<<<<<<<<<<<
+       BYTE SYNCHK          *  at a
+       BYTE LPARZ           *    left parenthesis
+       XML  PARSE             Do the parse
+       BYTE COMMAZ          * Stop on a comma
+       XML  SPEED             Must be
+       BYTE SYNCHK          *  at a
+       BYTE COMMAZ          *   comma
+       RTN
+*************************************************************
+* SUBROUTINE FOR 'RANGE' USEN IN ALL SOUND AND GRAPHICS     *
+*************************************************************
+RAN16  XML  SPEED             Insure in range               <<<<<<<<<<<<<<<<<<<<
+       BYTE RANGE          *   of 1 to 16
+       BYTE 1
+       DATA 16
+       DEC  @FAC1             Adjust to internal range
+       RTN
+*************************************************************
+* SUBROUTINE TO GET ROW, COLUMN VALUES                      *
+*************************************************************
+GPHV   CALL LPAR              Insure '(', parse, insure ','
+       XML  SPEED             Insure in range
+       BYTE RANGE           *  of 1 - 24
+       BYTE 1
+       DATA 24
+       DEC  @FAC1             Adjust to internal range
+       ST   @XPT,@MNUM
+       ST   @FAC1,@YPT        Set row pointer
+       XML  SPEED             Get column value
+       BYTE PARCOM          *  and insure a comma
+       XML  SPEED             Insure in range
+       BYTE RANGE           *  of 1 to 32
+       BYTE 1
+       DATA 32
+       DEC  @FAC1             Internal range: 0 - 31
+       ST   @FAC1,@XPT        Set column pointer
+       RTN
+*  Subroutine to control border color
+* Character background is also affected since transparent
+*  is used.
+BORDER CALL PARFF             Insure '(' , and parse
+       CALL RAN16             Check 1 - 16 & put in internal
+       MOVE 1,@FAC1,#7        Load VDP register
+       BR   LNKRT2            Return to XB program
+* Get ROW, COLUMN VALUES AND NUMBER OF CHARACTERS
+HVCHR  CALL GPHV              Get X, Y VALUES
+       XML  PARSE
+       BYTE RPARZ
+       CALL INTARG
+       ADD  OFFSET,@FAC1
+       ST   @FAC1,@VAR0       SAVE THE CHARACTER
+       DST  1,@FAC            ASSUME 1 CHARACTER
+       CEQ  RPARZ,@CHAT       If not right parenthesis
+       BS   GAC95
+       XML  SPEED             Must be
+       BYTE SYNCHK          *   at a
+       BYTE COMMAZ          *    comma
+       XML  PARSE             # OF CHARACTERS
+       BYTE RPARZ
+       CALL INTARG            FLOATING TO INTEGER
+GAC95  RTN
+*************************************************************
+* ERRWXY - Is the subroutine for CALL ERR(W,X,Y,Z)          *
+*  The parameters indicate:                                 *
+*   W - The error code # of the error                       *
+*   X - Indicates whether execution(-1) error or            *
+*       I/O (0-255) error on LUNO 0-255                     *
+*   Y - Indicates the severity code of the error            *
+*   Z - Line number of the error                            *
+*   ERR Can be called with 2 forms:                         *
+*       CALL ERR(W,X,Y,Z) and CALL ERR(W,X)                 *
+*   If ERR is called and no error has occured then all      *
+*   values returned are zero.                               *
+*************************************************************
+ERRWXY DST  @VSPTR,@FAC8      Get a temp VSPTR
+GAC99  DCH  @STVSPT,@FAC8     While not a bottom of stack
+       BR   GACD0
+       ST   V@2(@FAC8),@ARG   Keep ID code in ARG area
+       CEQ  >69,@ARG          *** ERROR entry
+       BR   GACAF
+       CALL SQUISH            Squish it out of the stack
+       XML  VPUSH             Put permanent copy of error
+*                              entry on stack
+       BR   ERR10             Jump out now
+* Jump always
+GACAF  CEQ  >67,@ARG          *** FOR entry
+       BR   GACBA
+       DSUB 32,@FAC8          Skip it
+       BR   GACCE
+GACBA  CEQ  >66,@ARG          *** GOSUB entry
+       BR   GACC5
+       DSUB 8,@FAC8           Skip it
+       BR   GACCE
+GACC5  CEQ  >6A,@ARG          * SYNTAX ERROR
+       BR   ERRSYN
+       DSUB 16,@FAC8          Skip it
+GACCE  BR   GAC99
+GACD0  DST  >0080,@FAC        No error entry there so
+       DST  >6900,@FAC2        fake one
+       DCLR @FAC4
+       DCLR @FAC6
+ERR10  XML  VPUSH             Push the temporary entry on
+*                              top of stack
+* Code to get "W" in
+       CALL COMB              Check for left parenthesis
+       CALL ERRC05            Pick up user's symbol
+       ST   V@-8(@VSPTR),@FAC1 Get error code
+       XML  CIF               Convert it to floating
+       XML  ASSGNV            Assign it
+* Code to get "X" in
+       CALL ERRCOM            Check syntax & get user's symbol
+       CLOG >80,V@-7(@VSPTR)  If execution
+       BR   GAD03
+       MOVE 8,G@FLT1,@FAC     Make it such
+       DNEG @FAC              Make it a negative
+       BR   GAD0B
+GAD03  ST   V@-5(@VSPTR),@FAC1 Get I/O LUNO number
+       XML  CIF               Convert it to floating
+GAD0B  XML  ASSGNV
+* Code to get "Y" in
+       CEQ  RPARZ,@CHAT       If long form of CALL ERR
+       BS   GAD42
+       CALL ERRCOM            Check syntax & get user's symbol
+       ST   V@-7(@VSPTR),@FAC1 Get severity code
+       AND  >7F,@FAC1         Reset execution  /  I/O flag
+       XML  CIF               Convert it
+       XML  ASSGNV            Assign it
+* Code to get "Z" in
+       CALL ERRCOM            Check syntax & get symbol
+       DST  V@-2(@VSPTR),@FAC2 Get line pointer
+       DST  @FAC2,@FAC
+       DCZ  @FAC2             If line number exists
+       BS   GAD3E
+       DDECT @FAC2            Point to the line #
+       CALL GRSUB1            Read line # (2 bytes) from VDP
+*                              or ERAM (use GREAD)
+       BYTE >4C             * @FAC2: Source addr on ERAM/VDP
+       DST  @EEE,@FAC         Put the line # in FAC
+       AND  >7F,@FAC          Reset the breakpoint if any
+GAD3E  XML  CIF               Convert it
+       XML  ASSGNV            Assign it
+GAD42  XML  VPOP              Trash the temporary entry
+       B    LNKRTN            Return from subprogram
+* Must be long branch because of AND above
+ERRCOM CEQ  COMMAZ,@CHAT      Check for comma
+       BR   ERRSYN
+ERRC05 XML  PGMCHR            Get the next character
+       XML  SYM               Collect name & s.t. entry
+       XML  SMB               Get value space
+       XML  VPUSH             Push it
+       CLR  @FAC              Set up for conversion
+       RTN
+* CHANGE IN ADDRESS OF THE ERROR CALLS WILL AFFECT
+* THE FILE SUBS.....
+*     ERROR messages called from this file
+ERRSYN CALL ERRZZ             * SYNTAX ERROR
+       BYTE 3             *   (shared by SUBS)
+ERRSNM CALL ERRZZ             * STRING-NUMBER MISMATCH
+       BYTE 7             *   (shared by SUBS)
+ERRMUV CALL ERRZZ             * IMPROPERLY USED NAME
+       BYTE 9
+ERRMEM CALL ERRZZ             * MEMORY FULL
+       BYTE 11
+ERRSO  CALL ERRZZ             * STACK OVERFLOW
+       BYTE 12
+ERRNWF CALL ERRZZ             * NEXT WITHOUT FOR
+       BYTE 13
+ERRFNN CALL ERRZZ             * FOR/NEXT NESTING
+       BYTE 14
+ERRSNS CALL ERRZZ             * MUST BE IN SUBPROGRAM
+       BYTE 15
+ERRRSC CALL ERRZZ             * RECURSIVE SUBPROGRAM CALL
+       BYTE 16
+ERRRWG CALL ERRZZ             * RETURN WITHOUT GOSUB
+       BYTE 18
+ERRBS  CALL ERRZZ             * BAD SUBSCRIPT
+       BYTE 20
+ERRLNF CALL ERRZZ             * LINE NOT FOUND
+       BYTE 22
+ERRBA  CALL ERRZZ             * BAD ARGUMENTS
+       BYTE 28
+ERRBV  CALL ERRZZ             * BAD VALUE
+       BYTE 30            *   (shared by SUBS)
+ERRIAL CALL ERRZZ             * INCORRECT ARGUMENT LIST
+       BYTE 31            *   (shared by SUBS)
+ERRSNF CALL ERRZZ             * SUBPROGRAM NOT FOUND
+       BYTE 37
+* Other error messages appear in this program
+* ERRRDY      * READY                        DATA 0
+* ERRBRK      * BREAK POINT                  DATA 1
+* ERROLP      * ONLY LEGAL IN A PROGRAM      DATA 27
+*
+* WRNN01      * NUMERIC OVERFLOW             DATA 2
+* WRNS02
+* WRNST1      * STRING TRUNCATED             DATA 19
+* WRNST2
+* WRNLNF      * LINE NOT FOUND               DATA 38
+*
+ 
+ 
+ 

@@ -1,0 +1,253 @@
+ 
+ 
+*************************************************************
+*                SUBROUTINE FOR 'GCHAR'                     *
+*************************************************************
+GCHAR  CALL GPHV              Get X,Y values
+       CALL NUMVAR            Get pointer to return variable
+       MOVE 8,G@FLT1,@FAC     Clear FAC
+       ST   @CB,@FAC1         Get the character
+       SUB  OFFSET,@FAC1      Remove screen offset
+       CHE  100,@FAC1
+       BR   GA919
+       EX   @FAC1,@FAC2
+       DIV  100,@FAC1
+       INC  @FAC
+GA919  XML  ASSGNV            Assign the value to the symbol
+       BR   XPTRTN
+*************************************************************
+*               SUBROUTINE FOR 'COLOR'                      *
+*************************************************************
+COLOR  XML  SPEED             Must be
+       BYTE SYNCHK        *     at a
+       BYTE LPARZ         *       left parenthesis
+       CEQ  NUMBEZ,@CHAT      If sprite number specified
+       BR   COL20
+       CALL CHAR1             Check sprite number (SPNUM3)
+COL10  CALL SPCOL             Put the color in SAL
+       CEQ  COMMAZ,@CHAT      More color changes
+       BR   LNKRTN
+       CALL CHAR2             Skip and get sprite number (SPNUM2)
+       BR   COL10
+* This part for regulare color change routine
+COL20  XML  SPEED             Parse the character
+       BYTE PARCOM         *   set and insure a comma
+       XML  SPEED             Insure in range of
+       BYTE RANGE          *   0<= x <= 14
+       BYTE 0,0,14
+       DADD >080F,@FAC        Color table addr(>0810 - >081D)
+       XML  VPUSH             Push table set address
+       XML  SPEED             Parse the foreground color
+       BYTE PARCOM         *   and insure a comma
+       CALL RAN16             Error if >16 or <1
+       ST   @FAC1,@VAR4       Save it
+       SLL  4,@VAR4           Foreground color in 4 MSBits
+       XML  PARSE             Get background color
+       BYTE RPARZ
+       CALL RAN16             Error if >16 or <1
+       OR   @FAC1,@VAR4       Background color in 4 LSBits
+       XML  VPOP              Get color table address
+       ST   @VAR4,V*FAC       Load the colors into the table
+       CEQ  COMMAZ,@CHAT      End of call. Go back.
+       BR   LNKRTN
+       XML  PGMCHR            Skip ","
+       BR   COL20             Take care of the next set
+*      CALL SPCOL -- Changes color of sprite.
+*                    Called also from SPRITE.
+SPCOL  XML  PARSE
+       BYTE RPARZ          *  Get the color number
+       CALL RAN16             Check range 1 - 16
+       ST   @FAC1,V@3(@SPSAL) Store in SAL
+       RTN
+*************************************************************
+* INTARG - Insures that the value in FAC is a numeric,      *
+*          converts it to integer, issues error message if  *
+*          necessary or returns.                            *
+*************************************************************
+INTARG CH   >63,@FAC2         If string - error
+       BS   ERRSNM
+       CLR  @FAC10            ASSUME NO ERROR OR WARNING
+       DCLR @FPERAD
+       XML  FLTINT
+       CZ   @FAC10            If error
+       BR   ERRBV
+       CGE  0,@FAC            Can't be < zero
+       BR   ERRBV
+       RTN
+* FAC IS SET UP WITH F.P. 1
+JOYXY  ST   @VAR0,@FAC1
+       CZ   @VAR0             If <>0
+       BR   GA995
+       CLR  @FAC              (>0000000000000000)
+       BR   GA99D
+GA995  CGE  0,@VAR0
+       BS   GA99D
+       ST   >BF,@FAC
+GA99D  XML  ASSGNV            Assign the value
+       RTN
+KEYJOY ST   @FAC1,@VAR0       Keyboard selection
+       CALL NUMVAR            Get variable for key-code
+       CEQ  COMMAZ,@CHAT      If not comma - error
+       BR   ERRSYN
+       XML  PGMCHR            Get next character
+       CALL NUMVAR            Get variable for key-status
+       ST   @VAR0,@KEYBD      Keyboard selection
+       MOVE 8,G@FLT1,@FAC     Set up float
+       SCAN                   SCAN the keyboard
+       CLR  @KEYBD            Clear the code(No affect on status)
+       RTNC                   Return scan condition code
+NUMVAR XML  SYM               Get the symbol name
+       CLOG >C0,V*FAC         Can't be string or function
+       BR   ERRMUV            It is, IMPROPERLY USED NAME ERROR
+       XML  SMB               Get value pointer
+       XML  VPUSH             Put on stack for ASSGNV
+       RTN                    And return
+ATTREG DATA >8000,>A000,>C000,
+       BYTE >9F,>BF,>DF,>FF,>00,>06
+COMB   CEQ  LPARZ,@CHAT       If not '(' - error
+       BR   ERRSYN
+       RTN
+SQUISH MOVE 8,V*FAC8,@FAC     Sneak it out                  <<<<<<<<<<<<<<<<<<<<
+       DST  @VSPTR,@FAC14     Now move stack to squish it   <<<<<<<<<<<<<<<<<<<<
+       DSUB @FAC8,@FAC14        out - # of bytes to move    <<<<<<<<<<<<<<<<<<<<
+       BS   SQU05             If none to move               <<<<<<<<<<<<<<<<<<<<
+       MOVE @FAC14,V@8(@FAC8),V@-16(@FAC8)                  <<<<<<<<<<<<<<<<<<<<
+SQU05  DSUB 8,@VSPTR                                        <<<<<<<<<<<<<<<<<<<<
+       RTN                                                  <<<<<<<<<<<<<<<<<<<<
+*************************************************************
+*                 SUBPROGRAM FOR CLEAR                      *
+*************************************************************
+CLEAR  ALL  SPACE+OFFSET      Clear the screen
+       ST   3,@XPT            Initialize screen pointer
+       BR   LNKRT2            Return to caller
+*************************************************************
+*               SUBPROGRAM FOR VERSION                      *
+*************************************************************
+VERS   CALL COMB              Insure have left parenthesis
+       CALL ERRC05            Get symbol information
+*-----------------------------------------------------------*
+* Change version number to 110     6/16/81                  *
+       DST  110,@FAC                                        *
+       XML  CIF               Convert to floating point 110 *
+*-----------------------------------------------------------*
+       BR   KEY2A             Assign and return to caller
+* INIALIZATION DATA FOR SOUND
+FLTS   BYTE >42,>0B,>12,>22,>00,>00,>00,>00
+SNDREG BYTE >01,>FF,>01,>04,>9F,>BF,>DF,>FF,>00
+*************************************************************
+*                SUBPROGRAM FOR 'SOUND'                     *
+* Builds 2 blocks in VDP RAM                                *
+* 1st BLOCK : >01,<ATTENUATION FOR NOISE>,<INTERRUPT COUNT> *
+* 2nd BLOCK : >04,>9F,>BF,>DF,>FF,>00                       *
+*************************************************************
+SOUND  DCEQ VRMSND,@>83CC     Insure previous sound started
+       BS   SOUND
+       MOVE 9,G@SNDREG,V@VRMSND
+       CALL LPAR              Duration in milliseconds
+       CGE  0,@FAC            Don't wait for completion
+       BS   GAA39
+       DNEG @FAC                of previous sound
+       DCLR @PRTNFN           Make GPL interpeters stop previous
+GAA39  XML  SPEED             Insure duration
+       BYTE RANGE           *  is in range
+       BYTE 1               *   of 1 - 4250
+       DATA 4250
+* Convert duration into 1/60s of a second
+       DMUL 6,@FAC            Duration * 6
+       DDIV 100,@FAC          (duration * 6) / 100
+       CZ   @FAC1             If duration =0
+       BR   GAA4D
+       INC  @FAC1             Set it to 1/60th of a second
+GAA4D  ST   @FAC1,V@VRMSND+2    3rd byte of the 1st block
+*                          | INTERUPT COUNT
+*************************************************************
+*      SOUND TABLE OF 10 BYTES IN CPU RAM (>00 - >09)       *
+* >00 - >05 : FREQUENCY CONTROL                             *
+* >06 - >08 : ATTENUATION CONTROL                           *
+* >09       : NOISE CONTROL(non-zero = noise encountered)   *
+* >0A       : POINTER FOR CURRENT FREQENCY CONTROL          *
+* >0B       : POINTER FOR CURRENT ATTENUATION CONTROL       *
+*                    >00 , >01 FOR REG 0;                   *
+*                    >02 , >03 FOR REG 1;                   *
+*                    >04 , >05 FOR REG 2;                   *
+* REG0 : >8000, REG1 : >A000, REG3 : >C000                  *
+* INITIALIZE ATTENUATION CONTROL                            *
+* REG0 : >9F, REG1 : >BF, REG2 : >DF                        *
+*************************************************************
+       MOVE 12,G@ATTREG,@>8300
+SOUND1 XML  SPEED             Parse the frequency value
+       BYTE PARCOM         *   and insure a comma
+       CALL CKSTNM            Must be a numeric
+       CGE  0,@FAC            Noise if negative
+       BR   SOUND2
+       MOVE 8,G@FLTS,@ARG     Constant 111834
+       XML  FDIV              P = 111834/FREQUENCY
+       XML  SPEED             Insure in range
+       BYTE RANGE
+       BYTE 3               * Range: 3 - 1023
+       DATA 1023
+* GET THE 4 L.S.Bits BITS AND 6 M.S.Bits OF 'P'
+       DSRC 4,@FAC
+       SRL  4,@FAC
+       DOR  @FAC,*STADDR  1st byte of frequency control bytes
+*                         BIT   7   6   5   4   3   2   1   0
+*                               1  <REG>    0  <L.S.B. 4 OF P>
+*                         2nd byte of frequency control bytes
+*                               0   0   <M.S.B. 6 of 'P'     >
+       INCT @STADDR           Advance ponter for next time
+       CALL ATTNUT            Get attenuation
+*                        BIT    7   6   5   4   3   2   1
+*                               1   <REG>   1   0   0   0
+       AND  @FAC1,*VAR2         1   <REG>   1   <ATTN/2 DB>
+       INC  @VAR2             Advance pointer for next time
+* CHECK FOR END OF SOUND CALL
+SOUND3 CEQ  RPARZ,@CHAT       End of statement?
+       BS   SOUND5
+       XML  SPEED             If not right parenthesis
+       BYTE SYNCHK        *    then must be at
+       BYTE COMMAZ        *      a comma
+       CEQ  6,@STADDR         If not 3 regs yet
+       BR   SOUND1
+* 3 sound regs already - so must be noise control
+       XML  SPEED             Get frequency (should be noise)
+       BYTE PARCOM        *     and insure a comma
+       CALL CKSTNM            Must be a numeric value
+       CGE  0,@FAC            If not noise-error
+       BS   ERRBV
+* NOISE CONTROL
+SOUND2 CEQ  >FF,@>8309        * BAD ARGUMENT ERROR
+       BR   ERRBA
+       DNEG @FAC              -(FREQUENCY)
+       XML  SPEED             Insure in range
+       BYTE RANGE         *    of 1 - 8
+       BYTE 1             *
+       DATA 8
+       DEC  @FAC1             0 - 7 (2nd BIT: 'T')
+*                                           OTH, 1ST BITS: 'S'
+       ST   @FAC1,@>8309
+       OR   >E0,@>8309        Noise control byte:
+*                        BIT  7   6   5   4   3   2   1   0
+*                             1   1   1   0   0  <T>  < S >
+* PUT ATTENUATION IN THE 2ND BYTE OF 1ST BLOCK
+       CALL ATTNUT
+       ST   @FAC1,V@VRMSND+1
+*                             1   1   1   1   < ATTN/2  DB>
+       BR   SOUND3            Go check for end of list
+SOUND5 CLR  @VAR5             Pointer to sound table
+SND05  CZ   @PRTNFN           Wait untild previous
+       BS   SOUND6
+       SCAN                   Is finished and               <<<<<<<<<<<<<<<<<<<<
+       BR   SND05              look for a break-key         <<<<<<<<<<<<<<<<<<<<
+       CEQ  BREAK,@RKEY       If not break-key              <<<<<<<<<<<<<<<<<<<<
+       BR   SND05                                           <<<<<<<<<<<<<<<<<<<<
+       BR   EXEC6C            If BREAK-KEY encountered      <<<<<<<<<<<<<<<<<<<<
+* LOAD SOUND TABLE
+SOUND6 ST   *VAR5,@>8400      SOUND ADDRESS PORT
+       INC  @VAR5             Next byte in table
+       CEQ  >0A,@VAR5         If not finished
+       BR   SOUND6
+       DST  VRMSND,@FAC       Where the 2 blocks are
+       I/O  1,@FAC            Start sound from VDP list
+       BR   LNKRTN            Return to caller
+ 
+ 

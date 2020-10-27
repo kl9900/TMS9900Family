@@ -1,0 +1,654 @@
+ 
+*************************************************************
+*                    CALLS routine                          *
+* This routine scans the CALL statement. Get the subprogram *
+* name, search the table and update the call list           *
+* (value stack area) if necessary. Share eht same XML       *
+* search routine as the symbol table code uses.             *
+*************************************************************
+CALLS  XML  PGMCHR            Get token after call
+       CALL CHKSYN            Check subprogram name
+       BYTE UNQSTZ          * Must start with unquoted string
+       CH   >0F,@CHAT         * NAME TOO LONG!!
+       BS   NTLERR
+       DST  @PGMPTR,@VAR0     Save program pointer to name
+       ST   FAC,@FAC17        Set up a pointer
+       ST   @CHAT,@FAC15      Save name length
+       ST   @CHAT,@FAC16      Save name length as a counter
+CALL20 XML  PGMCHR            Get one byte of name
+       ST   @CHAT,*FAC17      Store that character in FAC area
+       INC  @FAC17            Increment pointer
+       DEC  @FAC16            Decrement conter
+       BR   CALL20            Get next character
+*                            Exchange call list address with
+*                            symbol table address to run the
+*                            same search routine used for
+*                            symbol table search.
+       DEX  @SYMTAB,@CALIST
+       XML  SCHSYM            Search to see if name there
+       DEX  @CALIST,@SYMTAB   Exchange back both addresses
+       BS   SCAN67            If name found do nothing
+       CZ   @RAMFLG           If not imperative and ERAM
+       BS   G71AE
+       XML  VPUSH             Put first 8 byte of name
+       DST  @VSPTR,@VAR0      Pointing to new name location
+       CGT  >08,@FAC15        If more characters in name
+       BR   G71AE
+       MOVE 8,@FAC8,@FAC      Move rest of the name
+       XML  VPUSH             Push one more time
+G71AE  CLR  @FAC
+       ST   @FAC15,@FAC1      Put in name length
+       DST  @CALIST,@FAC2     Put in call list link
+       DST  @VAR0,@FAC4       Put in pointer to name
+       XML  VPUSH             Put the entry in the VDP
+       DST  @VSPTR,@CALIST    Change pointer to call list
+SCAN67 XML  PGMCHR
+       BR   CONSCN
+*************************************************************
+*                  SUBS routine                             *
+* This routine scans SUB statement in subprogram. First     *
+* check the subprogram name and call list. Then builds      *
+* subprogram table without argument list, scans symbols in  *
+* the subprogram and create symbol table for the subprogram,*
+* make entry to the subprogram table and add (if necessary) *
+* to call list.                                             *
+*************************************************************
+SUBS   CALL IMPIF             Can't be imperative or in "IF"
+       CZ   @FORNET           Check FOR-NEXT nesting
+       BR   ERRFNN
+       CLOG >01,@XFLAG        Called first time
+       BR   G71D7
+       CLOG >08,@XFLAG
+       BR   ERRMS
+* Cannot be in subprogram.  Can't start another one.
+       DST  @SYMTAB,V@TABSAV  Finish off main table
+* From the second SUB statement
+G71D7  DCLR @SYMTAB           Start with empty symbol table
+       OR   >28,@XFLAG        Set flag for SAFLG and SUBFLG
+       AND  >FE,@XFLAG        Reset REMODE flag
+       XML  PGMCHR            Get name behind SUB statement
+       CALL CHKSYN            Make sure it's unquoted string
+       BYTE UNQSTZ
+       CH   >0F,@CHAT         Length must be <= 15
+       BS   NTLERR
+       ST   @CHAT,@FAC1       Save name length
+       DST  @PGMPTR,@FAC4     Assume pointer to VDP name
+       CZ   @RAMTOP           But if ERAM save name in table
+       BS   G720E
+       CLR  @FAC
+       XML  MEMCHK            FAC already has name length
+       BS   ERRMEM            * MEMORY FULL
+       DSUB @FAC,@FREPTR      Get pointer to put name in
+       DST  @FREPTR,@EEE1     Re-do pointer to name
+       DINC @EEE1             Correct for one off
+       DST  @FAC,@FFF1        Set for XML GVWITE
+       DST  @PGMPTR,@DDD1     Set for XML GVWITE
+       XML  GVWITE            Move @FFF1 bytes from ERAM at
+*                              DDD1 to VDP at EEE1
+*
+* Start building the subprogram table
+       DST  @EEE1,@FAC4       Put pointer in VRAM to name
+G720E  DST  14,@FAC           Minimum table size for subprogram
+       XML  MEMCHK            Make sure enough room there
+       BS   ERRMEM            * MEMORY FULL
+       CLR  @FAC              Prepare for name length
+       ST   @CHAT,@FAC1       Get the name length
+       DST  @SUBTAB,@FAC2     Save subprogram table address
+       DCLR @FAC6             Mark end of argumant list
+*  @FAC   = name length       @FAC2  = subprogram table link
+*  @FAC4  = pointer to name   @FAC6  = argument list = 00
+*  @FAD8  = @PGMPTR           @FAC10 = @EXTRAM
+*  @FAC12 = symbol table = 00
+       DADD @FAC,@PGMPTR      Skip the name to look ahead
+       MOVE 4,@PGMPTR,@FAC8   Copy PGMPTR and EXTRAM
+       DCLR @FAC12            Assume subpgm has no symbol table
+       DSUB 14,@FREPTR        Reset free pointer
+       DST  @FREPTR,@SUBTAB   Copy
+       DINC @SUBTAB           Set new subtable pointer
+       MOVE 14,@FAC,V*SUBTAB  Put the table in!!
+* Start fixing up subprogram's symbol table
+       DST  @SUBTAB,V@SSTEMP  Copy address of subtable
+       DADD 6,V@SSTEMP        Point to argument list
+       DST  V@SSTEMP,V@SSTMP2 Duplicate for later use
+       XML  PGMCHR            Get next token
+       CALL CHKEND            Check if end of statement
+       BS   SCAN90            Yes. Get out here quick
+*                            Start looking at aruguments.
+       CALL CHKSYN            Check for left parenthesis
+       BYTE LPARZ
+SCAN86 OR   >80,@XFLAG        Flag for ENTXFL
+       CALL ENTERX            Enter next parameter
+       DST  2,@FAC            Get room for ptr in sub block
+       XML  MEMCHK            See if we had space for 2 bytes
+       BS   ERRMEM            * MEMORY FULL
+       DST  V@SSTEMP,@FAC     Copy current arg list pointer
+       DSUB @SYMTAB,@FAC      Find length from table address
+*                            Move symbol table down two bytes
+*                            to make space for next arguement
+MINUST EQU  -2
+       MOVE @FAC,V*SYMTAB,V@MINUST(@SYMTAB)
+       DDECT @SUBTAB          Adjust the subtable pointer
+       DDECT V@SSTMP2         Adjust to point to first arguement
+       DST  V@SSTEMP,@VAR0
+       DST  @SYMTAB,V@MINUST(@VAR0)   Put pointer in subtable
+       DST  @SYMTAB,@FAC      Copy symbol table address
+       DDECT @FAC             Pointing to real s.t. address
+SCAN88 DST  V@4(@FAC),@FAC2   Copy pointer to symbol table
+       DDEC @FAC2
+       DCH  @SUBTAB,@FAC2     If name moved also
+       BS   G7293
+       DDECT V@4(@FAC)         correct for the movement.
+G7293  DCZ   V@2(@FAC)        If more symbol there
+       BS   G72A4
+       DDECT V@2(@FAC)        Adjust the link address also
+       DST  V@2(@FAC),@FAC    Point to next s.t. address
+       BR   SCAN88            Check for more s.t. adjustment
+G72A4  DST  V@SSTMP2,@FAC     Restore pointer to first argument
+G72A8  DCEQ V@SSTEMP,@FAC     Fix all pointers in argument
+       BS   G72B5
+       DDECT V*FAC            Shift address by 2 bytes
+       DINCT @FAC             Go to next argument pointer
+       BR   G72A8
+G72B5  DDECT @SYMTAB          Restore s.t. pointer
+       DDECT @FREPTR          Restore free pointer
+* Done with building a subprogram table.
+       CEQ  RPARZ,@CHAT       Next character not ")" ?
+       BS   G72C4
+       CALL CHKSYN            Must be ","
+       BYTE COMMAZ
+       BR   SCAN86            Ge get more argument
+G72C4  XML  PGMCHR            Finished...
+       CALL CHKEND            Check if end of statement
+       BR   ERRSYX            If not, error
+SCAN90 AND  >DF,@XFLAG        Finished scanning sub arguments
+       DADD 6,V@SSTEMP        Point to location of pointer
+*                              in subtab
+       BR   CONSCN            Start scanning subprogram
+*************************************************************
+*                 SUBNDS and SUBXTS                         *
+* This routine scans SUBEND and SUBEXIT statement           *
+*************************************************************
+SUBNDS CALL IMPILL            Can't be imperative
+       CLOG >08,@XFLAG
+       BS   ERRSNS
+********* MUST BE IN SUBPROGRAM message above ***************
+       CEQ  SUBNDZ,@CHAT
+       BR   G72FB             Check for end of statement
+       CZ   @FORNET           Check FOR-NEXT nesting
+       BR   ERRFNN
+       CLOG >01,@XFLAG
+       BR   ERRSNS
+       CLOG >40,@XFLAG
+       BR   ERRSYX
+       DST  V@SSTEMP,@VAR0
+       DST  @SYMTAB,V*VAR0
+       OR   >01,@XFLAG
+G72FB  BR   SCAN22            Check for end of statement
+*************************************************************
+*           ENTER and ENTERX routines                       *
+* These routines take care of entering a symbol into the    *
+* symbol table. If a symbol is encountered which is already *
+* in the table, the usage of the symbol is checked for      *
+* consistency.                                              *
+*************************************************************
+ENTER  CALL PGMERR            Get next token - error if EOL
+ENTERW CGE  >00,@CHAT         If token - error
+       BR   ERRSYX
+ENTERX ST   FAC-1,@FAC15      FOR INDIRECTION IN NAME SAVE
+       DST  @PGMPTR,@NMPTR    SAVE POINTER TO NAME
+       DDEC @NMPTR            CORRECT FOR PGMCHR POST INCREMENT
+******************** Accumulate the name of the symbol
+ENT01  INC  @FAC15            Count the character
+       CH   FAC14,@FAC15
+       BS   NTLERR
+       ST   @CHAT,*FAC15      Save it
+       XML  PGMCHR            Get the next one
+       CGT  >00,@CHAT         If not token or EOL
+       BS   ENT01
+       DST  @PGMPTR,@ARG16    Save text pointer to put into
+       DDEC @ARG16             symbol table entry loater
+       CEQ  >24,*FAC15        String variable?
+       BR   G732D
+       OR   >10,@XFLAG        Set string flag
+G732D  SUB  FAC,@FAC15        Calculate length of name
+       INC  @FAC15            + offset of 1
+       CEQ  LPARZ,@CHAT       If complex
+       BS   ENT22
+       CLOG >80,@XFLAG        If ENTERX
+       BR   ENT08
+       CLOG >04,@XFLAG
+       BS   ERRSYX
+* If not DEF then DIM without subscripted variable
+*************************************************************
+*           CODE FOR SIMPLE ENTRY INTO TABLE                *
+* This incudes all non-dimensioned variables as well as     *
+* phony entries for no-parameter functions. ENT09 is the    *
+* entry point for entering one of these phony entries ENT10 *
+* is the code which checks for consistent use of symbols    *
+* within the user's program.                                *
+*************************************************************
+ENT08  DDEC @PGMPTR           Correct pointer overshoot
+ENT09  DST  @PGMPTR,@CHSAV    Save character pointer
+       CLR  @STKMIN+1         Zero dimensions for simple
+       ST   STKMIN+1,@TOPSTK  Save top of stack
+       CLOG >08,@FLAG         No search in function
+       BR   ENT16
+       XML  SCHSYM            Search symbol table
+       BR   ENT16             Not found - must enter it
+       DINC @PGMPTR           Correct pointer undershoot
+* Common code used by SIMPLE and COMPLEX
+* When the symbol appears in the SYMBOL TABLE. It varifies
+* that the declarations are the same
+* (# of paremeters/dimensions, string, funciton)
+ENT10  CLOG >80,@XFLAG        Redeclaring
+       BS   ERRMUV
+       CLOG >24,@XFLAG        If function or sub-arg
+       BR   ERRMUV            Then redefining variable UDF
+       ST   V*FAC,@VAR0       Fetch declaration
+       AND  >07,@VAR0         MASK FUNCTION AND STRING BITS
+       CEQ  *TOPSTK,@VAR0     Not same # of dim
+       BR   ERRMUV
+       AND  >6B,@XFLAG        Clear FNCFLG, STRFLG and ENTERX
+       RTN                    All OK - Type matches perfectly
+ENT16  MOVE 16,@FAC,@ARG      Save name
+       DST  14,@NMLEN         Need 14 bytes for a simple variable
+       CLOG >14,@XFLAG        String or function?
+       BS   ENT61             No - allocate & update table
+       BR   ENT60             Yes - need 8 bytes for them
+*                              Set count to 8 and update
+*************************************************************
+*           CODE FOR A COMPLEX ENTER                        *
+*************************************************************
+ENT22  DST  @PGMPTR,@CHSAV    Save the line pointer
+       ST   STKMIN,@STACK     Initiaze base of date stack
+       MOVE 16,@FAC,@ARG      Save name
+       CLOG >84,@XFLAG        ENTERX or inside a DEF ?
+       BR   ENT28             Yes, require special scanning
+ENT24  XML  PGMCHR            Get next character
+       CALL CHKSYN            Must have numeric constant
+       BYTE NUMCOZ
+       CALL CSINT             Convert dimension to integer
+       BS   ERRBV             If got an error on conversion
+       CZ   @FAC              If not BIG dim
+       BR   G73A6
+       CHE  @BASE,@FAC1        Dim < BASE
+       BR   ERRBV
+G73A6  PUSH @FAC1             Push this dimension
+       PUSH @FAC              Both bytes
+       CH   STKMAX,@STACK     If too many dims
+       BS   ERRSYX
+       CEQ  COMMAZ,@CHAT      If comma-more dims
+       BS   ENT24
+       CEQ  RPARZ,@CHAT       Ok if end on rpar
+       BS   ENT40
+       BR   ERRSYX            Didn't end on a rpar
+******************* Code for a non-DIM statement
+ENT28  ST   1,@VAR0           Parenthisis level counter
+*                              At first level
+ENT29  CALL PGMERR            Get next token - error if EOL
+       CGT  >00,@CHAT
+       BR   G73CD
+       CLOG >20,@XFLAG        Not accepted?
+       BR   ERRBA
+       BR   ENT29             Get next token
+G73CD  CEQ  RPARZ,@CHAT
+       BS   ENT34
+       CLOG >04,@XFLAG
+       BR   ERRSYX
+       CEQ  COMMAZ,@CHAT
+       BR   G73EC
+       CGT  >01,@VAR0         If not top-level command
+       BS   ENT29
+       PUSH @DFLTLM+1
+       PUSH @DFLTLM           Push a default limit
+       CGT  STKMAX,@STACK     NOT too many dim
+       BR   ENT29
+       BR   ERRSYX            Too many dims - so error
+* Jump always
+G73EC  CLOG >20,@XFLAG        * BAD ARGUMENT
+       BR   ERRBA
+       CEQ  STRINZ,@CHAT
+       BR   G73FB
+ENT30  CALL SKPSTR
+       BR   ENT29
+G73FB  CEQ  NUMCOZ,@CHAT
+       BS   ENT30
+       CEQ  LPARZ,@CHAT
+       BR   G7407
+       INC  @VAR0             Increase nesting level
+G7407  BR   ENT29             Not anything above. Get next
+ENT34  DEC  @VAR0             Decrease nesting level
+       BR   ENT29             Continue scan unless through
+       PUSH @DFLTLM+1         Push final default limit
+       PUSH @DFLTLM
+*************************************************************
+* Calculate number of dims and search symbol table          *
+*************************************************************
+ENT40  ST   @STACK,@VAR0      Compute the # of dims
+       SUB  STKMIN,@VAR0
+       SRL  1,@VAR0           Divide by 2
+       PUSH @VAR0             Push the number of dims on top
+       ST   @STACK,@TOPSTK    Save stack top
+       MOVE 16,@ARG,@FAC      Get name back
+       XML  SCHSYM            Search symbol table for it
+       BR   ENT44             Not found in table - ENTER it
+       DST  @CHSAV,@PGMPTR    Restore scan restart at "("
+       BR   ENT10             And check for consistency
+ENT44  CLOG >24,@XFLAG        If function or subprogram
+       BR   ENT60              argument then need 8 bytes
+* Caculate total number of array elements
+       ST   @STACK,@TOPSTK    Save stack pointer
+       DEC  @STACK            Skip # of dims
+       POP  @FAC              Assume base=0
+       POP  @FAC1
+       DINC @FAC
+       CLR  @VARC             But correct if base=1
+       ST   @BASE,@VARC+1     Handle 1st dim specially to
+       DSUB @VARC,@FAC         Avoid 1 multiply
+       DST  @FAC,@NMLEN       FAC gets # of elements in array
+       B    ENT53             Merge into loop
+ENT50  POP  @FAC              Get next dimension
+       POP  @FAC1
+       DINC @FAC              Assume base=0
+       DSUB @VARC,@FAC        But correct if base=1
+       DST  @NMLEN,@ACCUM
+       DMUL @FAC,@ACCUM       Accumulate size
+       DCZ  @ACCUM            Out of memory
+       BR   ERRMEM
+       DST  @ACCUM+2,@NMLEN
+ENT53  CEQ  STKMIN,@STACK
+       BR   ENT50
+       CLOG >E0,@NMLEN        If any of the top 3 bits set
+       BR   ERRMEM             then * MEMORY FULL
+       DSLL 1,@NMLEN          Assume string| memory=elemets*2
+       CLOG >10,@XFLAG        But it numeric
+       BR   G7480
+       DSLL 2,@NMLEN          Memory = 4*(2 * # of elements)
+G7480  DADD 6,@NMLEN          Need 6 more bytes for header
+       CLR  @FAC              For double
+       ST   *TOPSTK,@FAC1     Get # of dimensions
+       SLL  1,@FAC1           Multiply by 2
+       DST  @FAC,@VARC        Save # of elements for later
+       DADD @FAC,@NMLEN       Total # of bytes needed
+       CARRY
+       BS   ERRMEM
+       BR   ENT61             Jump always
+ENT60  DST  8,@NMLEN          Functions & simple strings need 8
+*************************************************************
+* Check to see if enough memory in VDP RAM or ERAM          *
+* Put symbol name in table if imperatively created or if    *
+* excuting an ERAM program.                                 *
+*************************************************************
+ENT61  CZ   @RAMTOP           If not ERAM
+       BR   G74A5
+       CZ   @PRGFLG           If program mode
+       BR   ENT62
+G74A5  CZ   @ARG15            If 0-length (function)
+       BS   ENT62
+* Move the name into the symbol table
+       CLR  @VAR0             Re-do name and pointer
+       ST   @ARG15,@VAR0+1    Get length of name
+       DST  @VAR0,@FAC        Put length for MEMCHK
+       XML  MEMCHK            Check enough memory for name
+       BS   ERRMEM            * MEMORY FULL
+       DSUB @VAR0,@FREPTR     Get space for the name
+       DST  @FREPTR,@NMPTR    Set new pointer to name
+       DINC @NMPTR            New pointer to name
+       MOVE @VAR0,@ARG,V*NMPTR Move the name
+ENT62  CLR  @FAC7             Assume not simple numeric
+       CZ   @RAMTOP           Set simple numeric variable
+       BS   ENT63A
+       ST   @TOPSTK,@STACK    Get # of dimensions of paremeters
+       POP  @FAC8
+       CLOG >14,@XFLAG        If string or UDFunction
+       BR   ENT62A            Yes, don't set FAC7
+*                             No, if array?
+       CZ   @FAC8             Not array
+       BR   ENT62A
+       INC  @FAC7             Has to be a simple numeric
+       DST  @NMLEN,@VAR0      Check enough memory in VDP
+       DST  8,@NMLEN          For later use - to locate
+       DST  @NMLEN,@FAC       Check enough memory in VDP
+       XML  MEMCHK
+       BS   ERRMEM            * MEMORY FULL
+       BR   ENT63             Check enough memory in ERAM
+ENT62A CLR  @FAC6
+       CLOG >04,@XFLAG
+       BR   ENT63A
+*                          UDFunction
+       ST   @FAC8,@FAC6
+       CZ   @FAC6             String or numeric array?
+       BS   ENT63A
+* If numeric array goto ENT62B. When checking subprogram
+* arguments, numeric array is treated the same as string
+* array case.
+       CLOG >20,@XFLAG
+       BR   ENT62C
+       CLOG >10,@XFLAG
+       BS   ENT62B
+ENT62C CLR  @FAC6             Clear FAC6 to indicate string array
+       BR   ENT63A            So skip the next portion
+* Numeric array case...
+ENT62B DST  @NMLEN,@VAR0      Store @NMLEN in temporary
+       DST  @VARC,@NMLEN      # of bytes for dimension information
+       DADD 8,@NMLEN          # of bytes need in the symbol
+*                              table entry in VDP RAM
+       DST  @NMLEN,@FAC       Check enough memory in VDP RAM
+       XML  MEMCHK
+       BS   ERRMEM            * MEMORY FULL
+       DST  @VAR0,@FAC        Restore @NMLEN from VAR0
+       DSUB @VARC,@FAC
+       DSUB 6,@FAC
+ENT63  DST  @RAMFRE,@FAC2     Get ERAM free pointer
+       DSUB @FAC,@FAC2        Calculate lowest address needed
+       DINC @FAC2             One byte off here
+       DCHE CPUBAS,@FAC2      * MEMORY FULL
+       BR   ERRMEM
+       DST  @FAC2,@RAMFRE     Set new ERAM freespace pointer
+       BR   ENT65
+ENT63A DST  @NMLEN,@FAC       No, # of bytes needed
+       XML  MEMCHK            * MEMORY FULL
+       BS   ERRMEM             in VDP RAM
+* Now, construct the entry for the symbol table in the FAC
+* for ease and speed. Then move it to VDP RAM
+ENT65  CLR  @FAC              Clear the header byte
+       CLOG >10,@XFLAG        If string
+       BS   G7548
+       OR   >80,@FAC          Set string bit in header
+G7548  CLOG >04,@XFLAG        If UDFunction
+       BS   G7550
+       OR   >40,@FAC          Set function bit
+G7550  ST   @TOPSTK,@STACK    Get # of dimensions or parameters
+       POP  @FAC8
+       CZ   @FAC8             If array or parameters
+       BS   ENT67
+       OR   @FAC8,@FAC        Overlay # of dimensions
+       CLOG >24,@XFLAG        If def or sub-arg
+       BR   ENT67             Don't set opt flag
+       OR   >02,@XFLAG        Array so set OPTION BASE flag
+ENT67  ST   @ARG15,@FAC1      Save length of name
+       DST  @SYMTAB,@FAC2     Link to previous entry
+       DST  @NMPTR,@FAC4      Save pointer to the name
+       DSUB @NMLEN,@FREPTR    Set new table pointer
+       DINC @FREPTR
+* Move the entry from the FAC to the symbol table
+       MOVE 6,@FAC,V*FREPTR
+       DST  @FREPTR,@SYMTAB   Pointer to beginning of table
+       CLOG >08,@FLAG         If not run-function modify
+       BR   G758B
+       CLOG >08,@XFLAG        If not in subprogram
+       BR   G758B
+       DST  @SYMTAB,V@SYMBOL  Save pointer in VDP RAM
+G758B  DADD 6,@FREPTR
+       CZ   @RAMTOP           If ERAM exists then
+       BS   G75C1
+       CEQ  >01,@FAC7         If simple numeric variable
+       BR   G75A8
+       DST  @VAR0,@NMLEN      Restore NMLEN
+       DST  @RAMFRE,V*FREPTR  Set the pointer into ERAM
+       CLOG >20,@XFLAG
+       BR   ENT69
+       BR   G75BF
+G75A8  CLOG >20,@XFLAG
+       BR   ENT69
+       CZ   @FAC6             If numeric array
+       BS   G75BF
+       DST  @VAR0,@NMLEN      Restore NMLEN
+       DST  @VARC,@VAR0       Leave the space for dimensions
+*                              info whtich is going to be
+*                              filled in later
+       DADD @FREPTR,@VAR0
+       DST  @RAMFRE,V*VAR0    Set pointer in ERAM
+G75BF  BR   G75C6
+G75C1  CLOG >20,@XFLAG
+       BR   ENT69
+G75C6  CLOG >04,@XFLAG        If UDF - no dimensions
+       BS   G75D1
+       DST  @ARG16,V*FREPTR   SAVE POINTER TO "(" OR "="
+       BR   ENT69B            Jump always
+**** Save the dimension information in the symbol table
+G75D1  CGT STKMIN,@STACK      If non-array
+       BR   ENT69
+       ST   STKMIN,@STACK     Get to bottom of stack
+ENT68  INC  @STACK            Point tat LSB of next entry
+       CHE  @TOPSTK,@STACK    If finished, out
+       BS   ENT69
+       ST   *STACK,V@>01(@FREPTR)  * Put directly into table
+       INC  @STACK            Point at MSB of next entry
+       ST   *STACK,V*FREPTR   Put directly into table
+       DDECT @NMLEN           Used up 2 bytes in table
+       DINCT @FREPTR          Adjust pointer to unused bytes
+       BR   ENT68             Get next dimension
+***** Now, zero the required amount of memory
+ENT69  CZ   @RAMTOP           If ERAM exists
+       BS   ENT69D
+       CLOG >10,@XFLAG
+       BR   ENT69D
+       CEQ  >01,@FAC7         If simple numeric variable
+       BR   G7608
+       DST  8,@NMLEN          Zero 8 bytes of ERAM memory
+       BR   ENT69C
+G7608  CZ   @FAC6             If numeric array
+       BS   G7618
+       DSUB 6,@NMLEN          Calculate amount of ERAM to clear
+ENT69C XML  IO                Special code to clear ERAM
+       BYTE 3               * Select the clear - ERAM code
+       BYTE RAMFRE          * Address of ERAM address
+       BYTE NMLEN           * Address of number of bytes
+       DDEC @RAMFRE           Adjust ERAM free pointer
+G7618  BR   ENT69B            VDP case
+ENT69D DSUB 7,@NMLEN          Now clear VDP RAM
+       CLR  V*FREPTR          Clear 1st byte, then the rest
+       MOVE @NMLEN,V*FREPTR,V@1(@FREPTR)
+ENT69B DST  @SYMTAB,@FREPTR   Set new free pointer @ then table
+       DDEC @FREPTR           Now, set it at 1st free byte
+       AND  >EB,@XFLAG        Clear STRFLG and FNCFLG
+       CLOG >80,@XFLAG        If ENTERX call
+       BS   G763D
+       CLOG >20,@XFLAG        If not scanning
+       BR   G763D              a subprogram argument then
+       DST  @CHSAV,@PGMPTR    Restore character pointer
+G763D  XML  PGMCHR            Get next character
+       RTN
+*************************************************************
+* THIS ROUTINE READS A CHARACTER AND WILL GIVE AN ERROR IF  *
+* IT READS AN END OF LINE (PREMATURE END)                   *
+*************************************************************
+PGMERR XML  PGMCHR
+       CALL CHKEND
+       BS   ERRSYX            Premature EOL
+       RTN
+*************************************************************
+* THIS ROUTINE SKIPS QUOTED STRINGS UNQUOTED STRINGS AND    *
+* NUMERIC CONSTANTS                                         *
+*************************************************************
+SKPSTR XML  PGMCHR            Get the byte count
+       CLR  @VARC              for double
+       ST   @CHAT,@VARC+1     Get count for add
+       DADD @VARC,@PGMPTR     Skip the string
+       RTN
+* ERROR messages called in this file
+ERRIBS CALL ERRZZ             * ILLEGAL AFTER SUBPROGRAM
+       BYTE 4
+NTLERR CALL ERRZZ             * NAME TOO LONG
+       BYTE 6
+ERROBE CALL ERRZZ             * OPTION BASE ERROR
+       BYTE 8
+ERRMUV CALL ERRZZ             * IMPROPERLY USED NAME
+       BYTE 9
+ERRMEM CALL ERRZZ             * MEMORY FULL
+       BYTE 11
+ERRNWF CALL ERRZZ             * NEXT WITHOUT FOR
+       BYTE 13
+ERRFNN CALL ERRZZ             * FOR/NEXT NESTING
+       BYTE 14
+ERRSNS CALL ERRZZ             * MUST BE IN SUBPROGRAM
+       BYTE 15
+ERRMS  CALL ERRZZ             * MISSING SUBEND
+       BYTE 17
+ERRBA  CALL ERRZZ             * BAD ARGUMENT
+       BYTE 28
+ERRBV  CALL ERRZZ             * BAD VALUE
+       BYTE 30
+* Other error messages inside this program
+* ERRSYN    * SYNTAX ERROR                         DATA  3
+* ERROLP    * ONLY LEGAL IN A PROGRAM              DATA 27
+* ERRPV     * PROTECTION VIOLATION                 DATA 39
+*************************************************************
+* Search and clean up stack and symbol table to not allow   *
+* garbage to accumulate                                     *
+*************************************************************
+CLEAN  DST  @VSPTR,@FAC8      Get a temporary stack pointer
+CLEAN1 DCH  @STVSPT,@FAC8     While not end of stack
+       BR   G76BE
+       ST   V@2(@FAC8),@FAC14 Get stack ID byte
+       SUB  >66,@FAC14        Check the range
+       CH   >04,@FAC14        If string, numeric, >70, >72
+       BR   G7698
+       XML  VPOP              Throw it away (Must be on top!)
+       BR   CLEAN
+G7698  CASE @FAC14
+       BR   CLEANG            GOSUB entry                >66
+       BR   CLEANF            FOR   entry                >67
+       BR   CLEANU            UDF   entry                >68
+       BR   CLEANE            ERROR entry                >69
+       BR   CLEANS            SUB   entry                >6A
+CLEANE CALL SQUISH            ERROR Entry - squish it out
+CLEANG DSUB 8,@FAC8           Go down 1 entry
+       BR   CLEAN1            Go on to next entry
+* Jump always
+CLEANF DSUB 16,@FAC8          Keep it around but get below
+CLEANS DSUB 16,@FAC8          16 bytes further down
+       BR   CLEAN1            FOR or SUB entry
+* Jump always
+CLEANU DCLR @FAC4             Cause delink to work right
+       CALL DELINK            Delink the symbol table entry
+       BR   CLEANG
+G76BE  RTN
+*************************************************************
+* Subroutine to convert numeric to integer                  *
+*************************************************************
+CSINT  DCLR @FAC              Start with clean FAC               <<<<<<<<<<<<<<<
+CSINT2 XML  PGMCHR                                               <<<<<<<<<<<<<<<
+       SUB  >30,@CHAT         Subtract ASCII value for "0"
+       CHE  >0A,@CHAT         Valid numeric
+       BS   G76E3
+       DMUL 10,@FAC           Multiply previous result
+       DCZ  @FAC              Overflow ??????
+       BR   RETSET
+       ST   @CHAT,@FAC1       Get result back down
+       DADD @FAC2,@FAC        Add current digit
+       CARRY                  If >65535
+       BS   RETSET
+       CGE  >00,@FAC          Integer > 32767
+       BR   RETSET
+       BR   CSINT2            And loop until done
+G76E3  ADD  >30,@CHAT
+       RTN                    Also used somewhere else
+RETSET CEQ  @>8300,@>8300
+       RTNC
+ 
+       AORG >17FE
+       DATA >4A86
+ 
+ 

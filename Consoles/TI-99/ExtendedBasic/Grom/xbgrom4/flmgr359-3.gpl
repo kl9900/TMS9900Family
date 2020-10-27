@@ -1,0 +1,395 @@
+ 
+*************************************************************
+*                    INPUT ROUTINE                          *
+* First check for file or screen I/O. If file I/O then check*
+* for pending output and print that. If screen I/O then     *
+* check for input prompt:                                   *
+* Next collect the INPUT variable list on the V-stack. Get  *
+* enough input form either file or keyboard, and compare    *
+* types with entries on V-stack. After verification and     *
+* approval, assign the values.                              *
+*************************************************************
+INPUT  CALL INITKB            Assume keyboard INPUT
+       CEQ  NUMBEZ,@CHAT      Might be #0 or #1-255
+       BR   G875A
+       CALL CHKFN             Check for default #0
+       DCZ  @FAC              If luno #0
+       BR   G860B
+       DST  @PGMPTR,V@INPUTP  Save PGMPTR for "try again"
+       DINC V@INPUTP          Pass the ":" for the
+*                              "prompt" code handler
+*                              later, (using #0 will not
+*                              take care the prompt in
+*                              INPUT)
+       CALL INPUZ2            #0 is equivalent to no #
+       BR   INPZ2
+G860B  CALL INSU1             Get info about file
+* INTERNAL files get special treatment
+       CLOG >08,V@FLG(@PABPTR) INTERNAL file
+       BS   G86AD
+       CZ   V@OFS(@PABPTR)    Fresh start
+       BR   G861E
+INTRZ0 CALL IOCLZ1            Get a new record through
+*                              the DSR
+G861E  ST   V@OFS(@PABPTR),@VARA+1 Regain possible offset
+       CLR  @VARA             Make that a two byte constant
+       DST  V@BUF(@PABPTR),@TEMP5 Get first address
+       DADD @VARA,@TEMP5      Compute actual address
+*                              within record
+INTRZ1 CALL BUG01             Get the symbol table entry
+* Above call fixes bug, of the given variable
+       XML  VPUSH             And save it on the stack
+       DCLR @BYTES            Assume no data available
+       CHE  V@CNT(@PABPTR),@VARA+1 Pick up data
+       BS   G8643
+       ST   V*TEMP5,@BYTES+1  Length byte first
+       DINC @TEMP5            Update both actual address
+       INC  @VARA+1            and offset
+G8643  CEQ  >65,@FAC2         Has to be string variable
+       BR   G8650
+       DST  @BYTES,@FAC6      Set length of string
+       CALL CTMPST            Create temporary string
+       BR   G867E
+G8650  CEQ  >08,@BYTES+1      * FILE ERROR
+       BR   ERRFE
+       MOVE @BYTES,V*TEMP5,@FAC  Copy value
+       DCZ  @FAC              Watch out for non-scaled stuff
+       BS   G867C
+       ST   FAC7,@ARG         Test for legal numeric
+G8661  CH   99,*ARG           * FILE ERROR
+       BS   ERRFE
+       DEC  @ARG              Next digit for test
+       CEQ  FAC1,@ARG
+       BR   G8661
+       DST  @FAC,@ARG         Copy in ARG for some testing
+       DABS @ARG              Be sure we're positive
+* If first byte after expon. byte=0 : incorrect
+* normalization has occured : FILE ERROR
+* Or >99 : illegal numeric  : FILE ERROR
+       DEC  @ARG1             0 would cause underflow here
+       CH   98,@ARG1
+       BS   ERRFE
+       BR   G867E
+G867C  DCLR @FAC2             Be sure FAC2 = 0 (no strings)
+G867E  DADD @BYTES,@TEMP5     Update address and
+       ADD  @BYTES+1,@VARA+1   offset again
+       XML  ASSGNV            Assign value to variable
+       CLR  V@OFS(@PABPTR)    Undo allocated offsets
+       CEQ  COMMAZ,@CHAT
+       BR   G86AB
+       XML  PGMCHR            Get next text character
+       CALL CHKEND            Check for end of statement
+       BS   INTRZ2            OK, EOS is fine
+       CHE  V@CNT(@PABPTR),@VARA+1
+       BS   INTRZ0
+       BR   INTRZ1            Still something left
+INTRZ2 CHE  V@CNT(@PABPTR),@VARA+1
+       BS   G86AB
+       ST   @VARA+1,V@OFS(@PABPTR) Save value of offset
+G86AB  XML  CONT              And CONTINUE
+G86AD  CALL GETVAR            Collect variable list on stack
+       DST  @STADDR,@CURLIN   Save it in temp
+       DST  CRNBUF,@RAMPTR    Initialize crunch buffer pointer
+       CLR  @RECLEN           Initialize field counter
+       ST   CZREAD,V@COD(@PABPTR) Select READ operation
+       CZ   V@OFS(@PABPTR)
+       BR   INPZ31
+       BR   INPZ3             Adjust for used record usage
+G86C6  ST   COMMAZ,V@-1(@RAMPTR) Fake legal separator
+INPZ3  CALL IOCLZ1            Get next input record
+       CLR  V@OFS(@PABPTR)    Reset offset within record
+       CALL RECENT
+       ST   V@CNT(@PABPTR),@VARA Get record length
+G86DB  CZ   @VARA
+       BS   INPZ31
+       ADD  OFFSET,V*VARW     Add video offset for normal
+       DINC @VARW             Screen-type crunch - proceed
+       DEC  @VARA              for entire record
+       BR   G86DB
+INPZ31 CALL RECENT            Compute actual record entry
+       ST   V@CNT(@PABPTR),@VARA+1  Compute end of record
+       CLR  @VARA             Make that a double byte
+       DADD V@BUF(@PABPTR),@VARA  Add buffer start addr
+       DDEC @VARA             Point to last position in record
+       CLR  @VAR6             Assume no values input
+       XML  CRUNCH            Scan data fields as in DATA stmt
+       BYTE 1               * Indicate input stmt crunch
+       DCZ  @ERRCOD           If some crunch error
+       BR   ERRINP
+       INC  @VAR6             Get correct # of fields (one off)
+       ADD  @VAR6,@RECLEN     Update # of fields up to now
+       CHE  @VAR5,@RECLEN     OK, THAT'S ENOUGH!!!!
+       BR   G86C6
+       DDECT @PGMPTR          Backup program pointer
+       XML  PGMCHR            Re-inspect last token before EOL
+       CALL RECENT            Precompute record entry
+       CLR  V@OFS(@PABPTR)    Assume no pending record
+       CEQ  COMMAZ,@CHAT      Make record pending
+       BR   G8752
+       CEQ  @VAR5,@RECLEN     Enough left pending
+       BS   G8752
+       SUB  @VAR5,@RECLEN     Compute remaining # of fields
+       SUB  @RECLEN,@VAR6     # of fields used in last record
+INPZ32 CEQ  >82,V*VARW        +OFFSET
+       BR   G873A             Skip quoted strings
+G872E  DINC @VARW
+       CEQ  >82,V*VARW        +OFFSET
+       BR   G872E
+       DINC @VARW
+       BR   INPZ32            Search for Nth data item
+G873A  DINC @VARW             Update pointer
+       CEQ  >8C,V@-1(@VARW) * ","+OFFSET = >8C
+       BR   G873A
+       DEC  @VAR6             Commas denote end of field
+       BR   INPZ32            Continue until done
+       DSUB V@BUF(@PABPTR),@VARW Compute current offset
+       ST   @VARW+1,V@OFS(@PABPTR) Store for next round
+G8752  ST   @VAR5,@VAR6       Copy # of variables for check
+       DST  @CURLIN,@STADDR   Restore from temp
+       BR   G8786
+G875A  CALL INITKB            Initialize some variables for KB
+       DST  @PGMPTR,V@INPUTP  Save for "try agian" case
+       DST  @CCPPTR,V@CPTEMP  Save CCPPTR, RECLEN for "try again"
+*                         Entry point for "try again" case
+INPZ33 CALL INSUB1            Put out prompt
+INPZ2  CALL GETVAR            Get variable list on V-stack
+INPUZ3 CALL INSUB2            Read from the screen
+       CLR  @VAR6             Assume no values input
+       XML  CRUNCH            Crunch the input line
+       BYTE 1               * Indicate input stmt scan
+       DST  @CURLIN,@STADDR   Restore from temp
+       DCZ  @ERRCOD           If got some crunch error
+       BR   WRNINP
+       XML  SCROLL            Scroll up after crunching
+       ST   3,@XPT            Reset XPT too - pending records
+       INC  @VAR6             # fields = # of commas + 1
+       CEQ  @VAR6,@VAR5       # of variables wrong
+       BR   WRNINP
+* Once we're here, all information should be availiable
+* After type verification for input and variables, push
+* all value entries on the V-stack.
+* VAR6 = VAR5 = number of variables
+G8786  DST  @DATA,@CURLIN     Save current DATA pointer
+       DST  CRNBUF,@DATA      Get crunch entry
+       DST  @VAR4,@MNUM       Get entry in V-stack before PUSH
+INPUZ4 DADD 8,@MNUM           Point to first symbol table entry
+       DST  V*MNUM,@CCPPTR    Get immedediate result
+       CALL GETRAM            Get value descriptor from RAM
+       CLOG >80,V*CCPPTR      Numerical value
+       BR   G87CF
+       CALL CHKNUM            Check entered value against numerical
+       BR   INPUZ5            Found error
+       CZ   @DSRFLG           Do not check overflow in file I/O,
+*                              supply machine infinity with
+*                              appropriate sign and continue
+       BS   INPUZ6
+       CZ   V@CSNTP1          Watch out for overflow in screen I/O
+       BS   INPUZ6
+       DST  @CURLIN,@DATA     Restore DATA pointer
+       BR   WRZZ5             Ask for input re-enter
+INPUZ5 CZ   @DSRFLG           FILE I/O IS FATAL
+       BS   ERRINP
+       DST  @CURLIN,@DATA     Restore DATA pointer on error
+WRNINP CALL WARNZZ            Go here for simple warnings too
+       BYTE 32              * INPUT ERROR - TRY AGAIN
+WRZZ5  CALL SCRZ              Scroll the screen and reset CCPAD
+       DST  V@INPUTP,@PGMPTR  Restore ptr to "prompt" if any
+       DST  V@CPTEMP,@CCPPTR  Restore CCPPTR, RECLEN, for try
+       DST  @VAR4,@VSPTR      Restore original stack ptr
+       BR   INPZ33
+G87CF  CALL CHKSTR            Check string input
+       BS   INPUZ5            ERROR ... CHECK I/O TYPE
+INPUZ6 CALL GETRAM            Get separation character (RAM)
+       CEQ  COMMAZ,@VAR0+1
+       BS   G87E6
+       DEC  @VAR6             Has to be end of data
+       BR   INPUZ5            If not ... ERROR
+       CZ   @VAR0+1
+       BR   INPUZ5
+       BR   G87EA
+G87E6  DEC  @VAR6             Count number of value entries
+       BR   INPUZ4            Continue
+* Assign cycle - assign values to variables because it rescans
+* the program line, this code can not be udes for inperative
+* statements , since the crunch buffer get's destroyed on
+* input. The rescan is necessary because subscripts should be
+* evaluated AFTER all previous values have been assigned. i.e.
+*        INPUT I,A(I)      with values 2,3
+* Should assign value 3 to A(2) !!!!!!!!!
+* No error-checking is done here, since types are already
+* validated. We might get subscripts out of range though!!!!
+G87EA  DST  CRNBUF,@DATA      Prepare for input rescan
+       DST  @STADDR,@PGMPTR   Restore token pointer for rescan
+       DDEC @PGMPTR           Backup on token
+       DST  @VAR4,@VSPTR      Restore original stack pointer
+INPZ65 XML  PGMCHR            Get next program characters
+       CALL CHKEND            Might have , before EOS
+       BS   INPUZ7
+       CALL BUG01             Rescan variable name
+* Above call fixes bug.       Get correct entry for arrays
+       XML  VPUSH             Save on stack for ASSGNV
+       CALL GETRAM            Get first token of input value
+       CEQ  STRVAL,@FAC2      Numerical case
+       BS   G880F
+       CALL CHKNUM            Check for numerical value
+       BS   INPZ67            COND should be set (valid numeric)
+G880F  CALL CHKSTR            Get the correct string value
+       DST  @FAC6,@BYTES      Length for temporary string
+       CALL CTMPST            Create temporary string
+INPZ67 XML  ASSGNV            Assign value to variable
+       CALL GETRAM            Skip separator (already checked)
+       CALL CHKEND            Check for end to statement
+       BR   INPZ65            Found it
+INPUZ7 DST  @CURLIN,@DATA     Restore DATA pointer
+       XML  CONT              Contiue in PARSE
+RECENT ST   V@OFS(@PABPTR),@VARW+1  Get record offset
+       CLR  @VARW             Double byte value required
+       DADD V@BUF(@PABPTR),@VARW   Got it
+       RTN                    AND NOW, THE END IS NEAR...
+CHKRM  DCH  SCRNBS+29,@CCPADR Not enough room for "?"
+       BR   G8840
+SCRZ   XML  SCROLL            Scroll one line for "?"
+       DST  SCRNBS+2,@CCPADR   and update CCPADR accordingly
+G8840  RTN
+*************************************************************
+*                LINPUT ROUTINE                             *
+* If file-I/O then                                          *
+*             Get file number and check it                  *
+*             Internal file not allowed                     *
+* End if                                                    *
+* Get variable info                                         *
+* Must be string variable                                   *
+* If file I/O then                                          *
+*           If no-partial-record of REC clause included     *
+*           Read new record                                 *
+*     End if                                                *
+*     Set up copy pointers                                  *
+* Else                                                      *
+*     Call readline to read from keyboard                   *
+*     Copy to crunch buffer adjustin g for screen offset    *
+* End if                                                    *
+* Get string of proper length                               *
+* Move data into string                                     *
+* Assign string                                             *
+* Done.                                                     *
+*************************************************************
+LINPUT CALL INITKB            Assume input from keyboard
+       CEQ  NUMBEZ,@CHAT      If "#" - then device
+       BR   G885C
+       CALL CHKFN             Check for default = 0
+       DCZ  @FAC              #0 is assumed
+       BS   LINP10
+       CALL INSU1             Parse the device #
+       CLOG >08,V@FLG(@PABPTR)
+       BR   ERRFE
+       BR   LINP10
+G885C  CALL INSUB1            Handle possible prompt
+LINP10 DST  @VSPTR,@VAR4      Save original V-pointer
+*                              incase BREAK in READLN
+       CALL BUG01             Get info about the symbol
+* Above call fixes bug.       Get value pointer and type
+       CEQ  STRVAL,@FAC2      Must be string
+       BR   ERRMUV
+       XML  VPUSH
+       CZ   @DSRFLG           If device I/O
+       BR   G88AF
+       CZ   V@OFS(@PABPTR)    If new record
+       BR   G887B
+       CALL IOCLZ1            Read the record
+       BR   G8893
+G887B  ST   V@CNT(@PABPTR),@BYTES Get length of record
+       DST  V@BUF(@PABPTR),@TEMP5 Get address of buffer
+G8885  CZ   @BYTES            While characters in buffer
+       BS   G8893
+       SUB  OFFSET,V*TEMP5    Remove INPUT's offset
+       DINC @TEMP5            Increment pointer
+       DEC  @BYTES            Decrement count
+       BR   G8885             Drop out directly when done
+G8893  CLR  @TEMP5            Need a word value
+       ST   V@OFS(@PABPTR),@TEMP5+1  Restore value
+       CLR  @BYTES            Need a word value
+       ST   V@CNT(@PABPTR),@BYTES+1  Get the length
+       DSUB @TEMP5,@BYTES     Calcualte length
+       DADD V@BUF(@PABPTR),@TEMP5  Current buffer address
+       CLR  V@OFS(@PABPTR)    Read next record next time
+       BR   G88E1             Else if keyboard input
+G88AF  CALL INSUB2            Clear line and call READLN
+       DCLR @BYTES            Initialize byte counter
+       DST  @RAMPTR,@TEMP5    Initialize "crunch" pointer
+       CEQ  SPACE+OFFSET,V*VARA     If space
+       BR   G88BF
+       DDEC @VARA             Don't include space on end
+G88BF  DCGT @VARA,@VARW       While not at end
+       BS   G88DC
+       ST   V*VARW,@VAR0      Get the character
+       CEQ  EDGECH,@VAR0      If not at edge character
+       BS   G88D8
+       SUB  OFFSET,@VAR0      Subtract screen offset
+       ST   @VAR0,V*RAMPTR    And put into crunch buffer
+       DINC @BYTES            Count it
+       DINC @RAMPTR           And update "crunch" pointer
+G88D8  DINC @VARW             Update input pointer
+       BR   G88BF
+G88DC  XML  SCROLL            Scroll the screen
+       ST   3,@XPT            Initialize x-pointer
+G88E1  CALL CTMPST            Create temporary string       <<<<<<<<<<<<<<<<<<<<
+       XML  ASSGNV            Assign the value to it        <<<<<<<<<<<<<<<<<<<<
+       XML  CONT              And continue execution
+* Get file number and info about the file
+INSU1  CALL CHKCON            Check & convert & search      <<<<<<<<<<<<<<<<<<<<
+       BR   ERRFE             Give error if required
+* INPUT allowed for input and update modes
+       CLOG >02,V@FLG(@PABPTR)
+       BR   ERRFE
+       CALL OUTEOF            Output pending PRINT stuff
+       ST   CZREAD,V@COD(@PABPTR)   Ensure read operation
+       CALL PARREC            Parse REC clause
+       XML  SPEED             Must be at a
+       BYTE SYNCHK          *  colon else
+       BYTE COLONZ          *   its and error
+       CLR  @DSRFLG           Clear keyboard input flag
+       RTN
+* Parse and put out input prompt
+INSUB1 DST  @PGMPTR,@STADDR   Save pointer for prompt check
+       DDEC @STADDR           Backup to previous token
+*                              Go into a tight loop
+G890B  CALL NXTCHR            Get next program character
+       BS   INPZ37            Detected end of statement
+       CEQ  COLONZ,@CHAT      Stop if we find a colon
+       BR   G890B
+       DST  @STADDR,@PGMPTR   Backup for actual prompt scan
+       XML  PGMCHR            Jump into 1st char of prompt
+       XML  PARSE             And try to decode string expression
+       BYTE COLONZ
+       CEQ  STRVAL,@FAC2      Number prompt illegal
+       BR   ERRSNM
+       CALL OSTRNG            Output the given prompt
+       BR   INPZ39            Exit without prompt backup
+INPZ37 DST  @STADDR,@PGMPTR   Backup to beginning of line
+       ST   COLONZ,@CHAT      Fake prompt with ":"          <<<<<<<<<<<<<<<<<<<<
+INPUZ2 CALL CHKRM             Check for room for ?          <<<<<<<<<<<<<<<<<<<<
+       ST   >9F,V*CCPADR      Display ?                     <<<<<<<<<<<<<<<<<<<<
+       DINCT @CCPADR          Count it too                  <<<<<<<<<<<<<<<<<<<<
+INPZ39 XML  SPEED             Must be at a                  <<<<<<<<<<<<<<<<<<<<
+       BYTE SYNCHK          *  colon else                   <<<<<<<<<<<<<<<<<<<<
+       BYTE COLONZ          *   its an error                <<<<<<<<<<<<<<<<<<<<
+       RTN
+* Issue 'BEEP' and call read line to read form screen
+INSUB2 CALL CHKRM             Check for room for answer     <<<<<<<<<<<<<<<<<<<<
+       DST  @CCPADR,@VARW     Copy current cursor position
+G8941  ST   >80,V*CCPADR      Clear the remainder
+       DINC @CCPADR            of the current line
+       DCHE >02FE,@CCPADR     Stop if we're there
+       BR   G8941
+       DST  >7F7F,V@>02FE     Replace edgechars
+       CZ   @PRTNFN           If previous tone finished
+       BR   G895A
+       CALL TONE1             ---------- BEEP --------------
+G895A  DEX  @VAR4,@VSPTR      Don't destroy V-stack on BREAK
+       CALL READLN            Input a line from the keyboard
+       DEX  @VAR4,@VSPTR      Restore V-stack pointer
+       DST  @STADDR,@CURLIN   Save in a temp
+       DST  CRNBUF,@RAMPTR    Init crunch buffer pointer
+       RTN
+ 
+ 

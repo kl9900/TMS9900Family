@@ -1,0 +1,134 @@
+ 
+ 
+********************************************************************************
+       AORG >1000
+*************************************************************
+* EDIT routine - display requested line and edit any changes
+*                in the program segment.
+*
+* FAC contains the line number just read in
+EDTZZ0 DCEQ @ENLN,@STLN       If no program
+       BR   GD008
+       B    ILLST
+GD008  XML  SPEED
+       BYTE SEETWO          * Try to find the line (# in FAC)
+       BR   EDTZ08            * LINE NOT FOUND
+EDTZ00 ST   29,@CCPPTR        Force new record on first line
+* The entry in the line number table is in EXTRAM
+       ST   OFFSET,@DSRFLG    Set screen output mode
+       ST   28,@RECLEN        Select standard record length
+       DCLR @PABPTR           I/O to the screen
+       CZ   @RAMTOP           If ERAM
+       BS   GD020
+       CALL GRMLST            Prepare to list from ERAM
+GD020  CALL LLIST             List the line
+* VARW contains the position of the first character following
+*      the line number.
+       CH   @RECLEN,@CCPPTR   Exactly at end of line
+       BR   GD032
+       XML  SCROLL            Scroll up one line
+       DSUB 32,@VARW          And correct both VARW
+       DSUB 28,@CCPADR          and CCPADR
+GD032  DST  @VARW,@ARG2       Set cursor at start position
+       AND  >E0,@ARG3         Back to beginning of line
+       DADD 157,@ARG2         Compute theoretically highest  <<<<<<<<<<<<<<<<<<<
+       DST  @CCPADR,@VARA     Use current high position
+*                              as high
+       DCHE @VARA,@ARG2       If > 4 then lines-correct
+       BS   GD048
+       DST  >031D,@ARG2       Allow for one more line         <<<<<<<<<<<<<<<<<<
+*-----------------------------------------------------------*
+* Fix "You cannot add characters to a line whose number is a
+*      multiple of 256, if that line was reached ty typing
+*      either an up arrow or a down arrow from a previous
+*      line" bug, the following line is changed
+*      CALL READL1            Allow user to make change
+GD048  CALL READL3            Allow user to make change
+*-----------------------------------------------------------*
+       CALL SAVLIN            Save the line for recall
+       CZ   @RAMTOP           If ERAM exists
+       BS   GD056
+       DST  @FAC14,@EXTRAM     saves EXTRAM in FAC
+GD056  CLOG 1,@FLAG           Autonumber
+       BR   EDTZ01
+       CEQ  UPARR,@RKEY       Ended in UP arrow
+       BR   GD06B
+       DADD 4,@EXTRAM         Point at next line to list
+       DCH  @ENLN,@EXTRAM     Doesn't exist
+       BS   EDTZ01
+       BR   EDTZ02
+GD06B  CEQ  DWNARR,@RKEY      Want next program line
+       BR   GD085
+       DSUB 4,@EXTRAM         Point at next line to list
+       DCHE @STLN,@EXTRAM     Passed high program
+       BS   EDTZ02
+EDTZ01 ST   CHRTN,@RKEY       Set no more editing
+       BR   GD085
+EDTZ02 CALL GRSUB3            Read from  ERAM, use GREAD
+*                              or VDP, Reset possible
+*                              breakpoint too
+       BYTE >2E             * @EXTRAM: Source address on ERAM
+       DST  @EEE1,@ARG6       Save for general use
+GD085  CZ   @ARG4             If current, the line was changed
+       BR   GD0A1
+       DST  CRNBUF,@RAMPTR    Initialize crunch pointer
+       XML  CRUNCH            Crunch the input line
+       BYTE 0               * Normal crunch mode
+       DCZ  @ERRCOD           If error
+       BS   GD097
+       B    TOPL42
+*-----------------------------------------------------------*
+* Fix "Illegal line number 0 can be created by editting a   *
+*      line" bug, 5/23/81                                   *
+*  Add the following line, and the label TOPL55 at line     *
+*   (TOPL45+9)                                              *
+GD097  DCZ  @FAC              If line number has            *
+       BR   GD09E              been deleted - treated as    *
+       B    TOPL55              imperative state            *
+*-----------------------------------------------------------*
+GD09E  CALL EDITLN            And edit into program buffer
+GD0A1  DST  @ARG6,@FAC        Line number for next line
+       CEQ  CHRTN,@RKEY       Stop on carriage return
+       BR   GD008
+       B    TOPL15            Don't kill the symbol table
+* JUMP ALWAYS
+G698C  EQU  >698C
+EDTZ08 B    G698C             LINE NOT FOUND
+* Save input line for edit recall                           <<<<<<<<<<<<<<<<<<<<
+SAVLIN AND  >E0,@VARW+1       Correct in case autonumber    <<<<<<<<<<<<<<<<<<<<
+       INCT @VARW+1           Skip edge characters          <<<<<<<<<<<<<<<<<<<<
+       DST  @VARA,@FAC        Get pointer to end of line    <<<<<<<<<<<<<<<<<<<<
+       DSUB @VARW,@FAC        Compute length of line        <<<<<<<<<<<<<<<<<<<<
+       BS   SAVLN5            If zero, length line          <<<<<<<<<<<<<<<<<<<<
+       DCH  160,@FAC          If line longer then buffer    <<<<<<<<<<<<<<<<<<<<
+       BR   GD0C6                                           <<<<<<<<<<<<<<<<<<<<
+       DST  160,@FAC          Default to max buffer size    <<<<<<<<<<<<<<<<<<<<
+GD0C6  MOVE @FAC,V*VARW,V@RECBUF  Save line                 <<<<<<<<<<<<<<<<<<<<
+SAVLN5 DST  @VARW,V@BUFSRT    Save pointer to line start    <<<<<<<<<<<<<<<<<<<<
+       DST  @VARA,V@BUFEND    Save pointer to line end      <<<<<<<<<<<<<<<<<<<<
+GD0D4  DCHE >0262,V@BUFSRT    If try more than 160          <<<<<<<<<<<<<<<<<<<<
+       BS   GD0E7                                           <<<<<<<<<<<<<<<<<<<<
+*-----------------------------------------------------------*<<<<<<<<<<<<<<<<<<<
+* Fix bug "Delete characters while in REDO mode, next REDO  *<<<<<<<<<<<<<<<<<<<
+*          still may show those deleted characters, 5/26/81 *<<<<<<<<<<<<<<<<<<<
+*   Replace following line                                  *<<<<<<<<<<<<<<<<<<<
+*      DST  >02FE,V@BUFEND    Update pointer to line end    *<<<<<<<<<<<<<<<<<<<
+       DADD 32,V@BUFEND       Shift the whole buffer 32     *<<<<<<<<<<<<<<<<<<<
+*                              down at a time               *<<<<<<<<<<<<<<<<<<<
+*-----------------------------------------------------------*<<<<<<<<<<<<<<<<<<<
+       DADD 32,V@BUFSRT       Update pointer for 160 chars  *<<<<<<<<<<<<<<<<<<<
+       BR   GD0D4                                           *<<<<<<<<<<<<<<<<<<<
+*-----------------------------------------------------------*<<<<<<<<<<<<<<<<<<<
+* Also add following 3 lines for the bug above              *<<<<<<<<<<<<<<<<<<<
+GD0E7  DCH  >02FE,V@BUFEND    Update pointer to line end    *<<<<<<<<<<<<<<<<<<<
+       BR   GD0F3                                           *<<<<<<<<<<<<<<<<<<<
+       DST  >02FE,V@BUFEND                                  *<<<<<<<<<<<<<<<<<<<
+*-----------------------------------------------------------*<<<<<<<<<<<<<<<<<<<
+GD0F3  RTN
+********************************************************************************
+       AORG >17FE
+*************************************************************
+       DATA  >DD3B
+ 
+ 
+ 

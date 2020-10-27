@@ -1,0 +1,234 @@
+ 
+ 
+ 
+*************************************************************
+*                     OLD STATEMENT                         *
+* A normal load:                                            *
+*   Get a program from an external device to VDP and        *
+*   reinitialize the program pointers. Also update the line *
+*   pointer table, since the memory size of the machine on  *
+*   which the program was created doesn't have to be the    *
+*   same as on the current system!!!! Then check if ERAM    *
+*   existed, move it to ERAM if does exist (in relocated    *
+*   from)                                                   *
+* Load a sequential file:                                   *
+*   When program is bigger than 13.5K and ERAM exists,      *
+*   maximum-length record reads are preformed to read the   *
+*   file and each record is copied into the ERAM as it is   *
+*   read.                                                   *
+*************************************************************
+OLD    CALL OLD1              Make OLD1 a subroutine for LOAD <<<<<<<<<<<<<<<<<<
+       B    TOPL15            Go back to top level            <<<<<<<<<<<<<<<<<<
+OLD1   CALL GPNAME            Get program name & reinitialize^s <<<<<<<<<<<<<<<<
+       XML  PGMCHR            Check for EOL                     <<<<<<<<<<<<<<<<
+       DST  @PABPTR,@STADDR   Compute memory start address
+       DADD V@NLEN-1(@PABPTR),@STADDR    Add PAB-name length
+       DADD PABLEN-4,@STADDR              and PAB length
+       DST  @>8370,V@RNM(@PABPTR)  Compute # of availiable bytes
+       DSUB @STADDR,V@RNM(@PABPTR)
+       DINC V@RNM(@PABPTR)    Include current address
+       DST  @STADDR,V@BUF(@PABPTR) for copy start
+       ST   CZLOAD,V@COD(@PABPTR)   Select LOAD I/O code
+       CALL CDSR              Call device service routine
+       BR   OLDZ3             Not a program file, may be a  <<<<<<<<<<<<<<<<<<<<
+*                              sequential file
+* STADDR still points to the info bytes
+       DST  V@2(@STADDR),@MNUM First test checksum
+       DXOR V@4(@STADDR),@MNUM  which is a simple XOR
+       DCEQ @MNUM,V*STADDR     Try PROTECTION option        <<<<<<<<<<<<<<<<<<<<
+       BS   G8C15                                           <<<<<<<<<<<<<<<<<<<<
+       DNEG @MNUM
+       DCEQ @MNUM,V*STADDR    No-ERROR
+       BR   OLDER
+       OR   >80,@FLAG         Yes, set LIST/EDIT PROTECTION flag <<<<<<<<<<<<<<<
+       BR   G8C17                                           <<<<<<<<<<<<<<<<<<<<
+G8C15  CLR  @FLAG             Otherwise clear protection    <<<<<<<<<<<<<<<<<<<<
+G8C17  DST  V@2(@STADDR),@ENLN  Copy new ENLN,
+       DST  V@4(@STADDR),@STLN   STLN and
+       DST  V@6(@STADDR),V@OLDTOP top of memory info
+       DADD 8,@STADDR         Point to program data
+       DST  @>8370,V@NEWTOP   Set up the new top
+       CALL RELOCA            Relocate according to @>8370  <<<<<<<<<<<<<<<<<<<<
+OLDZ5  CZ   @RAMTOP           ERAM present?                 <<<<<<<<<<<<<<<<<<<<
+       BS   LRTOPZ                                          <<<<<<<<<<<<<<<<<<<<
+*                             No, go back to toplevel
+*                             Yes, move from VDP to ERAM
+*                             (in relocated form)
+************ Move to the ERAM from CPUBAS first *************
+       DST  @>8370,@VAR0                                      <<<<<<<<<<<<<<<<<<
+       DSUB @STLN,@VAR0                                       <<<<<<<<<<<<<<<<<<
+       DINC @VAR0             # of bytes to move              <<<<<<<<<<<<<<<<<<
+       DST  @VAR0,@CCC        @CCC : Byte count for VGWITE    <<<<<<<<<<<<<<<<<<
+       DST  CPUBAS,@BBB       @BBB : Destination addr on ERAM <<<<<<<<<<<<<<<<<<
+       DST  @BBB,@STADDR      For later use as the base of    <<<<<<<<<<<<<<<<<<
+*                              current program image in RELOCA
+       DST  @STLN,@AAA        @AAA : Source address on ERAM   <<<<<<<<<<<<<<<<<<
+       XML  VGWITE            Move from VDP to ERAM           <<<<<<<<<<<<<<<<<<
+       DST  @>8370,V@OLDTOP   Set up old memory top           <<<<<<<<<<<<<<<<<<
+       DST  @RAMTOP,V@NEWTOP  Set up new memory top           <<<<<<<<<<<<<<<<<<
+       CALL RELOCA            Relocate the program image      <<<<<<<<<<<<<<<<<<
+OLDZ7  DST  @STLN,@RAMFRE     Reset the RAMFRE on ERAM        <<<<<<<<<<<<<<<<<<
+       DDEC @RAMFRE                                           <<<<<<<<<<<<<<<<<<
+       BR   LRTOPZ            Go back to toplevel             <<<<<<<<<<<<<<<<<<
+*************************************************************
+* At this point : if ERAM not exist - ERROR off else open   *
+* sequential file to load program to ERAM through VDP RAM   *
+*************************************************************
+OLDZ3  CZ   @RAMTOP                                          <<<<<<<<<<<<<<<<<<<
+       BS   OLDER                                            <<<<<<<<<<<<<<<<<<<
+* Set up PAB for OPEN
+* File type : Sequential file,
+* Mode of operation : Input
+* Date type : internal
+* Record type : Variable length records
+* Logical record length : 254 maximum
+       MOVE 9,G@PAB3,V@4(@PABPTR) Build the PAB          <<<<<<<<<<<<<<<<<<<
+       DST  @>8370,@FAC       Compute the data buffer address<<<<<<<<<<<<<<<<<<<
+       DSUB 253,@FAC                                         <<<<<<<<<<<<<<<<<<<
+       DST  @FAC,@AAA         Save it for later use in VGWITE<<<<<<<<<<<<<<<<<<<
+       DST  @FAC,V@BUF(@PABPTR)                              <<<<<<<<<<<<<<<<<<<
+       CALL CDSR              Call the device service routine<<<<<<<<<<<<<<<<<<<
+       BR   ERRZ2B            Return with ERROR indication   <<<<<<<<<<<<<<<<<<<
+*                              in COND
+* Start to read in file
+       CALL IOCALL            Read in the first record       <<<<<<<<<<<<<<<<<<<
+       BYTE CZREAD          *                                <<<<<<<<<<<<<<<<<<<
+* Check the control information
+       CEQ  10,V@CNT(@PABPTR) * 10 bytes contr info          <<<<<<<<<<<<<<<<<<<
+       BR   OLDER                                            <<<<<<<<<<<<<<<<<<<
+* >ABCD is the flag set at SAVE time indicating a program file
+       DCEQ >ABCD,V*FAC                                      <<<<<<<<<<<<<<<<<<<
+       BR   OLDER                                            <<<<<<<<<<<<<<<<<<<
+       DINCT @FAC                                            <<<<<<<<<<<<<<<<<<<
+       DST  V*FAC,@STLN       Copy the new STLN              <<<<<<<<<<<<<<<<<<<
+       DINCT @FAC                                            <<<<<<<<<<<<<<<<<<<
+       DST  V*FAC,@ENLN       ENLN too                       <<<<<<<<<<<<<<<<<<<
+       DST  @ENLN,@MNUM       Test checksum                  <<<<<<<<<<<<<<<<<<<
+       DXOR @STLN,@MNUM                                      <<<<<<<<<<<<<<<<<<<
+       DINCT @FAC                                            <<<<<<<<<<<<<<<<<<<
+       DCEQ @MNUM,V*FAC       Try PROTECTION option           <<<<<<<<<<<<<<<<<<
+       BS   G8CBD                                            <<<<<<<<<<<<<<<<<<<
+       DNEG @MNUM                                            <<<<<<<<<<<<<<<<<<<
+       DCEQ @MNUM,V*FAC       No, ERROR                      <<<<<<<<<<<<<<<<<<<
+       BR   OLDER
+       OR   >80,@FLAG         Yes, set LIST/EDIT PROTECTION flag  <<<<<<<<<<<<<<
+       BR   G8CBF                                             <<<<<<<<<<<<<<<<<<
+G8CBD  CLR  @FLAG             Otherwise clear protection flag <<<<<<<<<<<<<<<<<<
+G8CBF  DINCT @FAC
+* Check is there enough memory in ERAM
+       DST  V*FAC,@MNUM       Get the old top of memory out
+       DST  @MNUM,V@OLDTOP    For later use in RELOCA
+       DSUB @STLN,@MNUM
+       DINC @MNUM             Total # of bytes in program    <<<<<<<<<<<<<<<<<<<
+       DST  @MNUM,@CCC1       For later use as the byte count
+       DADD CPUBAS,@MNUM      Add the total # of bytes to CPUBAS
+* Check if enough memory in ERAM
+       GT                     Greater than >FFFF case
+       BS   OLDER
+       DCH  @RAMTOP,@MNUM     Greater than >DFFF case
+       BS   OLDER
+* Move to ERAM starting from CPUBAS first,
+* then relocate according the new top of memory in ERAM
+OLZZ   DST  CPUBAS,@BBB       @BBB : Destination addr in     <<<<<<<<<<<<<<<<<<<
+*                                    ERAM FOR VGWITE
+       DST  @BBB,@STADDR      For later use as base of the   <<<<<<<<<<<<<<<<<<<
+*                      current program image in ERAM RELOCA
+*      DST  >8370,@AAA        @AAA has been set up before
+*      DSUB 253,@AAA          For copy start on VDP RAM
+* @CCC1 : Total # of bytes to move to ERAM, set up above
+       CALL IOCALL            Read in the second record      <<<<<<<<<<<<<<<<<<<
+       BYTE CZREAD
+* Read in the file and each record
+* Should be a full (maximum length 254) record at this time,
+* because program supposed to be bigger than 13.5K
+G8CE9  CEQ  254,V@CNT(@PABPTR)                              <<<<<<<<<<<<<<<<<<<<
+       BR   OLDER                                           <<<<<<<<<<<<<<<<<<<<
+       DST  254,@CCC          @CCC : # of bytes to move     <<<<<<<<<<<<<<<<<<<<
+       XML  VGWITE            Move data from VDP to ERAM    <<<<<<<<<<<<<<<<<<<<
+       DADD 254,@BBB          Update the destination address <<<<<<<<<<<<<<<<<<<
+*                              on ERAM
+       DSUB 254,@CCC1         # of bytes left to move       <<<<<<<<<<<<<<<<<<<<
+       BS   OLDZ9             No more bytes to move         <<<<<<<<<<<<<<<<<<<<
+       CALL IOCALL            Read in the file and each record <<<<<<<<<<<<<<<<<
+       BYTE CZREAD          * Copied into ERAM as it is read  <<<<<<<<<<<<<<<<<<
+       DCHE 254,@CCC1         Leave the last record alone   <<<<<<<<<<<<<<<<<<<<
+       BS   G8CE9                                           <<<<<<<<<<<<<<<<<<<<
+* The record length should be the same as the # of bytes left
+* to move at this time
+       CEQ  @CCC1+1,V@CNT(@PABPTR)                          <<<<<<<<<<<<<<<<<<<<
+       BR   OLDER                                           <<<<<<<<<<<<<<<<<<<<
+       DST  @CCC1,@CCC        Set up byte count for the last read <<<<<<<<<<<<<<
+       XML  VGWITE            Move data from VDP to ERAM    <<<<<<<<<<<<<<<<<<<<
+OLDZ9  CALL IOCALL            Close the file                <<<<<<<<<<<<<<<<<<<<
+       BYTE CZCLOS
+       DST  @RAMTOP,V@NEWTOP  New top of memory             <<<<<<<<<<<<<<<<<<<<
+* V@OLDTOP : old top of memory, set up above
+* @STADDR  : base of current program image in ERAM, set above
+       CALL RELOCA            Relocate the program          <<<<<<<<<<<<<<<<<<<<
+       BR   OLDZ7             Go to set the RAMFRE and back to
+*                              toplevel
+PAB3   BYTE >00,>1C,>00,>00,>FE,>00,>00,>00,OFFSET
+* OLD error exit code, don't kill machine
+OLDER  CALL INITPG            Initialize program space
+       BR   ERRZ2             And take error exit
+LRTOPZ CALL KILSYM            Release string space/symbol table
+       RTN
+*************************************************************
+* RELOCATE THE PROGRAM IMAGE ACCORDING TO THE NEW TOP OF    *
+* MEMORY:                                                   *
+*         STLN         : old STLN                           *
+*         ENLN         : old ENLN                           *
+*         V@OLDTOP     : old top of memory                  *
+*         V@NEWTOP     : new top of memory                  *
+*         @STADDR      : current base for the old image     *
+*************************************************************
+RELOCA DST  @PABPTR,V@SIZCCP  Save in temp.                  <<<<<<<<<<<<<<<<<<<
+       DST  V@OLDTOP,@MNUM    Get the old top of memory
+       DST  V@NEWTOP,@PABPTR  Get the new top of memory
+       DSUB @MNUM,@ENLN       Compute ENLN relative to top
+       DSUB @MNUM,@STLN       Compute STLN relative to top
+       DSUB @STLN,@STADDR     Highest memory address used
+       DCLR @MNUM             Total # of bytes to be moved
+       DSUB @STLN,@MNUM       STLN = -(# bytes -1)
+       DINC @MNUM             Take care of that one
+       DADD @PABPTR,@ENLN     Compute new address of ENLN
+       DADD @PABPTR,@STLN      and STLN
+* @PABPTR : destination address, @STADDR : source address
+       DST  @MNUM,@ARG        @ARG   : byte count
+       DST  @STADDR,@VAR0     @VAR0  : source addr for MVDN
+       DST  @CCPPTR,@VAR5     Save in temp (CCPPTR, VARY2 EQU 6)
+       DST  @PABPTR,@VARY2    @VARY2 : destination addr for MVDN
+       DCEQ @RAMTOP,V@NEWTOP  Relocate the program
+       BR   G8D6F              in ERAM
+       XML  MVDN              Move from lower memory to higher
+*                              memory one byte at a time
+       BR   G8D7E
+G8D6F  DCLR V@SIZREC          Clear a temporary variable
+       DEX  @RAMTOP,V@SIZREC  Save the RAMTOP, also fake as
+*                         if ERAM not exist for MVDN in this
+       XML  MVDN              Move in VDP
+       DEX  @RAMTOP,V@SIZREC  Restore RAMTOP
+G8D7E  DST  @VAR5,@CCPPTR     Restore back
+* Update line # links according to new size
+       DST  V@OLDTOP,@MNUM    Old memory top
+       DSUB V@NEWTOP,@MNUM    Stop if sizes are same
+       BS   RELOZ1
+       DST  @STLN,@STADDR     Start relocation at STLN
+OLDZ2  DCHE @STADDR,@ENLN      and continue up to ENLN
+       BR   RELOZ1
+       DINCT @STADDR          Skip the line #
+       CEQ  @RAMTOP,V@NEWTOP  If in ERAM
+       BR   G8DAB
+       CALL GRSUB2            Read the link out
+       BYTE STADDR
+       DSUB @MNUM,@EEE1       Update
+       CALL GWSUB             Write it back
+       BYTE >0A,>58,>02     * STADDR,EEE1,2
+       BR   G8DAF
+G8DAB  DSUB @MNUM,V*STADDR    Upadate the link
+G8DAF  DINCT @STADDR          Skip the link, next line #
+       BR   OLDZ2             And continue until done
+RELOZ1 DST  V@SIZCCP,@PABPTR  Restore from temp
+       RTN
+ 
+ 

@@ -1,0 +1,384 @@
+ 
+ 
+*************************************************************
+*                 EXTENDED STRING PACKAGE                   *
+* THE ROUTINES ARE:                                         *
+*  LITS05 - Move a string literal from the program to the   *
+*            string space                                   *
+*  INTARG - Checks that an argument is a numeric and        *
+*            converts it from floating point to an integer  *
+*  PUSSTR - Checks that an argument is a string and pushes  *
+*            it on the stack                                *
+*  CONCAT - Concatenates 2 strings together                 *
+*  SEG$   - Segments a string                               *
+*  LEN    - Puts the length of a string in the FAC          *
+*  CHR$   - Converts an integer into its ASCII character    *
+*  STR$   - Converts a number into its string equivalent    *
+*  VAL    - Converts a string into its numeric equivalent   *
+*  POS    - Gives the position of one string within another *
+*  RPT$   - Generates a single string with multiple copies  *
+*            of the original string                         *
+*                                                           *
+*      AN ENTRY IN THE FAC LOOKS LIKE:                      *
+* +------------+-----+----+-------------+-----------------+ *
+* |addr of ptr | >65 | xx | addr of str | length of str   | *
+* +------------+-----+----+-------------+-----------------+ *
+*     FAC       FAC2  FAC3   FAC4           FAC6            *
+*************************************************************
+* Support routine for functions to build FAC entry
+LITS05 CLR  @FAC6             Need as a double-byte value
+       DST  @FAC6,@BYTES      LENGTH FOR GETSTR
+       ST   @RAMTOP,@FAC8     Copy ERAM flag for later
+LITS07 XML  GETSTR            ALLOCATE STRING SPACE
+LITS08 DST  >001C,@FAC        SAVE ADDR OF STRING  (SREF)
+       DST  @SREF,@FAC4       SAVE ADDR OF STRING
+       DST  >6500,@FAC2       INDICATES A STRING CONSTANT
+*********** COPY STRING INTO STRING SPACE *******************
+LITS09 DCZ  @BYTES            If non-null string
+       BS   GA42B
+       CZ   @FAC8
+       BR   GA420
+       MOVE @BYTES,V*TEMP5,V*SREF
+       RTN
+*                             Else source string in ERAM
+GA420  DST  @BYTES,@FFF1      FFF1 : BYTE COUNT
+       DST  @SREF,@EEE1       EEE1 : DESTINATION ADDR ON VDP
+       DST  @TEMP5,@DDD1      DDD1 : Source addr in ERAM
+       XML  GVWITE            Move data from ERAM to VDP
+GA42B  RTN
+LITS06 CLR  @FAC8             SET FLAG TO VDP
+       BR   LITS07            JUMP INTO CODE
+*************************************************************
+* PUSSTR - Insures that the entry in the FAC is a string    *
+*           and pushes it onto the stack.                   *
+*************************************************************
+PUSSTR CEQ  >65,@FAC2
+       BR   ERRSNM
+       XML  VPUSH             PUSH THE ARGUMENT
+       RTN
+*************************************************************
+* CONCAT - CONCATENATES TWO STRINGS TOGETHER                *
+*         INPUT  : FLOATING POINT ACCUMULATOR ENTRIES       *
+*         OUTPUT : CONCATENATED STRING AND (POSSIBLE)       *
+*                  ZEROED BACK-POINTERS FOR THE OLD STRINGS *
+*         USES   : TEMP2, TEMP4 AND TEMP5 AS TEMPORARIES    *
+*************************************************************
+CONCAT CLR  @ERRCOD+1         CLEAR THE ERROR CODE
+       CALL PUSSTR            Push the string & get next token
+       XML  PARSE             GET THE R.H. ARGUMENT
+       BYTE CONCZ
+       CEQ  >65,@FAC2         If not string - error
+       BR   ERRSNM
+       DST  @FAC6,@BYTES      GET R.H. LENGTH
+       DADD V@6(@VSPTR),@BYTES    ADD IN L.H. LENGTH
+       DCH  255,@BYTES
+       BR   GA45B
+       DST  255,@BYTES        TRUNCATE IF TOO LONG
+WRNST1 CALL WARNZZ            Display warning
+       BYTE 19                * STRING TRUNCATED message
+GA45B  DST  @BYTES,@TEMP6     Keep length for later
+       XML  VPUSH
+       XML  GETSTR            Alloccate the result string
+       XML  VPOP              Retrieve R.H.
+       MOVE 8,@FAC,@ARG
+       XML  VPOP              Retrieve L.H.
+       DST  @FAC4,@TEMP5      Set ptr to L.H. ARG(for FRESTR)
+       DST  @FAC6,@BYTES      Length of L.H. ARG
+       CLR  @FAC8             Force VDP mode
+       CALL LITS08            Set up FAC & copy L.H. ARG in
+       DCZ  @ARG6             If R.H. =0 don't copy
+       BS   CONC06
+       DST  @SREF,@TEMP4      Get ptr to new string
+       DADD @FAC6,@TEMP4      Ptr to where 2nd string begins
+       DSUB @FAC6,@TEMP6      Length of 2nd string
+*                                      (possibly truncated)
+       BS   CONC06
+       MOVE @TEMP6,V*ARG4,V*TEMP4     Copy in 2nd string
+       DADD @TEMP6,@FAC6      Add in length of 2nd ARG
+* NOTE: FAC6 already contained length of 1st ARG from the
+*       parse that was done on it
+CONC06 XML  CONT              Done.
+*************************************************************
+* SEG$(A$,X,Y) - Extracts the desiginated string from A$.   *
+*     X specifies the character position within A$ at       *
+*     which the extraction begins. Y specifies the number   *
+*     of characters to extract.                             *
+*     If X or Y is negative an error occurs. If X=0 an      *
+*     error occurs. If Y=0 or X > Y then a null string is   *
+*     is returned. If the ramaining length in A$ starting   *
+*     at the postion specified by X is less than the length *
+*     specified by Y, then the remainder of A$ starting at  *
+*     position X is returned.                               *
+*   INPUT - Control is turned over to SEG$ from PARSE. The  *
+*     only requirement is that a SEG$ was encountered.      *
+*   OUTPUT - The Floating Point Accumulator is set up with  *
+*     the header for the segmented string.                  *
+*   USES - TEMP2 (Others in calls to GETSTR and LITS08)     *
+*************************************************************
+SEGZ01 CALL LPAR              Insure "(" parse and check ","
+       CALL PUSSTR            Push string and get next token
+       XML  SPEED             Get the position
+       BYTE PARCOM       *     within the source string
+       CALL INTARG            CHECK & CONVERT ARG TO INTEGER
+       DCZ  @FAC               CAN'T HAVE VALUE OF 0
+       BS   ERRBV
+       XML  VPUSH             PUSH THE ARG
+       XML  PARSE             Get extraction length
+       BYTE RPARZ
+       XML  SPEED             Must have
+       BYTE SYNCHK       *     ended on
+       BYTE RPARZ        *      a right parenthesis
+       CALL INTARG            CHECK & CONVERT ARG TO INTEGER
+       DST  @FAC,@ARG         Move extraction length
+       XML  VPOP              Get position back
+       DST  @FAC,@ARG2        Move position
+       XML  VPOP              Retrieve source string
+       DST  @ARG2,@TEMP2      Get position within string
+       DCH  @FAC6,@TEMP2      If position > length =>null
+       BS   SEGZ08
+       DADD @ARG,@TEMP2       Compute end of substring
+       DSUB @FAC6,@TEMP2      Compute length beyond end
+       DDEC @TEMP2             string
+       DCGE 0,@TEMP2
+       BR   SEGZ06            Fine if substring is shorter
+       DST  @FAC6,@ARG        Else, truncate length of
+*                              substring
+       DSUB @ARG2,@ARG        Subtract position from source
+*                              length
+       DINC @ARG              Increment to include last char
+SEGZ06 DST  @ARG,@BYTES       # of bytes needed for substring
+       XML  VPUSH             Save source string entry
+       XML  GETSTR            ALLOCATE RESULT STRING
+       XML  VPOP              Restore source string entry
+       DST  @FAC4,@TEMP5      Pointer to source for FRESTR &
+*                              LITS08
+       DADD @ARG2,@TEMP5      Pointer to start of substring
+       DDEC @TEMP5            Decrement since zero-based
+       DST  @BYTES,@FAC6      Set length of string
+       CLR  @FAC8             FORCE VDP MODE
+       CALL LITS08            Copy in & set up FAC
+       XML  CONT
+SEGZ08 DCLR @ARG              Extract a null string
+       BR   SEGZ06            >>>JUMP ALWAYS<<<
+*************************************************************
+* LEN(A$) - Calculate the length of a string and leave the  *
+*           result in the FAC.                              *
+*  CONTROL - Turned over to NLEN from the parser.           *
+*  USES    - No temporaries.                                *
+*************************************************************
+LEN01  CALL PARFF             Insure left parenthesis & parse
+       BR   ERRSNM             If not string value
+       DST  @FAC6,@FAC        Length
+LEN02  XML  CIF               Convert integer to floating point
+       XML  CONT
+*************************************************************
+* CHR$(X) - Takes integer value X and converts the number   *
+*           into the ASCII representation for that number.  *
+*  CONTROL - Turned over to NCHR by the parser.             *
+*  OUTPUT  - FAC is set up with the string entry            *
+*  USES    - Uses temproraries when invoking LITS06(LITSTR) *
+*************************************************************
+CHRZ01 CALL PARFF             Insure left parenthesis & parse
+       CALL INTARG            Convert into integer
+       DST  1,@BYTES          Create a length 1 string
+       ST   @FAC1,V@ONECHR    Move the value to VDP(for LITS06)
+       DST  ONECHR,@TEMP5     Address of character
+       CALL LITS06            Create string and set up FAC
+       DST  1,@FAC6           Length of string
+       XML  CONT
+*************************************************************
+* ASC(A$) - Takes the numeric value of the first character  *
+*           in A$.                                          *
+*************************************************************
+ASC01  CALL PARFF             Insure left parenthesis & parse
+       BR   ERRSNM             If not string
+       CZ   @FAC7             Bad Argument?
+       BS   ERRBA
+       ST   V*FAC4,@FAC1      Get the first character
+       CLR  @FAC
+       BR   LEN02             USE COMMON CODE >>>JUMP ALWAYS<<<
+*************************************************************
+* STR$(X) - Takes as its imput an integer X and converts it *
+*           to its string representation.                   *
+*  CONTROL - Turned over to STR$ by the parser.             *
+*  USES    - The usual temporaries used by string function  *
+*            when it calls LITS06. Uses the Roll-out area   *
+*            for a temporary storage area when allocating   *
+*            the result string.                             *
+*  OUTPUT  - FAC is set up in the usual manner for a string.*
+*************************************************************
+STRZ01 CALL PARFF             Insure left parenthesis & parse
+       BS   ERRSNM             If not numeric-error
+       CLR  @FAC11            Select XB floating type
+       XML  CNS               Convert the number to string
+       CEQ  SPACE,*FAC11      If leading space
+       BR   GA53E
+       INC  @FAC11            Suppress it out
+       DEC  @FAC12            Shorten the length
+GA53E  CLR  @BYTES            Prepare for 2-byte value
+       ST   @FAC12,@BYTES+1   Get length of string
+       MOVE @BYTES,*FAC11,V@VROAZ    Put the string in VDP
+       DST  VROAZ,@TEMP5      Copy-from address(for LITSTR)
+       CALL LITS06            Allocate and set up FAC
+       DST  @BYTES,@FAC6      Put in the length
+       XML  CONT
+*************************************************************
+* VAL(A$) - Takes as its input a string, A$, and converts   *
+*           the string into a number if the string is a     *
+*           valid representation of a number.               *
+*  CONTROL - From the parser.                               *
+*  OUTPUT  - FAC contains the floating point number.        *
+*************************************************************
+VAL01  CALL PARFF             Insure left parenthesis & parse
+       BR   ERRSNM             If not string - error
+       CZ   @FAC7             Can't have null string
+       BS   ERRBA
+       CALL VALCD             So bad argument error
+       BS   ERRBA
+       XML  CONT
+* Short routine to parse a single argument enclosed in
+*  parenthesis for a function or a subprogram and set
+*  condition based upon whether the value parsed was a
+*  string or a numeric.
+PARFF  CEQ  LPARZ,@CHAT                                     <<<<<<<<<<<<<<<<<<<<
+       BR   ERRSYN                                          <<<<<<<<<<<<<<<<<<<<
+       XML  PARSE                                           <<<<<<<<<<<<<<<<<<<<
+       BYTE >FF               *                             <<<<<<<<<<<<<<<<<<<<
+       CEQ  >65,@FAC2                                       <<<<<<<<<<<<<<<<<<<<
+       RTNC                                                 <<<<<<<<<<<<<<<<<<<<
+VALCD  DST  @FAC4,@TEMP5      Pointer to string
+       DADD @FAC6,@TEMP5      Pointer to trailing length byte
+       DST  @FAC6,@BYTES      For suppressing trailing blanks
+       DINC @BYTES            Prepare for undue subtraction
+GA57C  DDEC @TEMP5            Keep track of end of string
+       DDEC @BYTES            Decrease length of string
+       BS   RTNSET            End up with empty string,
+       CEQ  SPACE,V*TEMP5     Wild trailing blanks
+       BS   GA57C
+       DINC @BYTES            Allow for terminator
+       XML  VPUSH             Save the ptr to the string
+       XML  GETSTR            Get a new string
+       XML  VPOP              Retrieve the ptr to the string
+       DST  @FAC4,@TEMP5      Get the ptr to the string
+       CLR  @FAC8             Force VDP mode
+       CALL LITS09            Copy the string and set up FAC
+       DADD @SREF,@BYTES      Point to the trailing length
+       DDEC @BYTES            Point at the last character
+       ST   SPACE,V*BYTES     Put in the terminator
+       DST  @SREF,@FAC12      Address for the conversion
+GA5A4  CEQ  SPACE,V*FAC12     While leading spaces
+       BR   GA5AE
+       DINC @FAC12            Skip leading blank
+       BR   GA5A4
+GA5AE  CLR  @FAC2             Get rid of string (in case=0)
+       CLR  @FAC10            Assume no error
+       XML  CSNUM             Convert it
+       DCEQ @BYTES,@FAC12     Convert all of it?
+       BS   WRNNO             Yes, check overflow & return
+RTNSET CEQ  @>8300,@>8300     No, return with condition set
+       RTNC
+*************************************************************
+* POS(A$,B$,X) - Attempts to match the string, B$, in A$    *
+*    beginning at character # X in A$. If X is > LEN(A$), a *
+*    match is not found or A$ is the null string then the   *
+*    returned value is 0. If B$ is the null string then the *
+*    returned value is 1. Otherwise, the returned value is  *
+*    the column # of the 1st character matched in A$        *
+*  CONTROL - Fromn the parser. Returned through common code *
+*            IN LEN.                                        *
+*  USES    - Not temporaries - Utilizes FAC and ARG.        *
+*************************************************************
+POS01  CALL LPAR              Insure "(", parse , insure ","
+       CALL PUSSTR            STACK THE STRING AND GET TOKEN
+       XML  SPEED             Parse the match string and
+       BYTE PARCOM      *      insure end on comma
+       CALL PUSSTR            STACK THE STRING AND GET TOKEN
+       XML  PARSE             Get position
+       BYTE RPARZ
+       XML  SPEED             Must have
+       BYTE SYNCHK          *  ended on a
+       BYTE RPARZ           *   right parenthesis
+       CALL INTARG            Check and convert it
+       DCZ  @FAC              Value out of range
+       BS   ERRBV
+       DST  @FAC,@BYTES       Keep the offset
+       DDEC @BYTES            Correct for position 0
+       XML  VPOP              Get match string back
+       MOVE 8,@FAC,@ARG       Put match in ARG
+       XML  VPOP              Get source back
+       CZ   @FAC7             If source null
+       BS   POS12
+       CH   @BYTES+1,@FAC7    OFFSET > LENGTH?
+       BR   POS12             Yes, no match possible
+       CZ   @ARG7             If null string
+       BS   POS06
+       DADD @BYTES,@FAC4      Adjust ptr for offset
+       SUB  @BYTES+1,@FAC7    Adjust length
+POS02  CHE  @ARG7,@FAC7       Enough space left for a match
+       BR   POS12             No, no match possible
+       DST  @FAC4,@FAC        Get first ARG
+       DST  @ARG4,@ARG        Get second ARG
+       ST   @ARG7,@ARG8       And length of second
+POS04  CEQ  V*FAC,V*ARG       Compare the characters
+       BR   POS10             Didn't match
+       DINC @FAC              Next in source
+       DINC @ARG              Next in match
+       DEC  @ARG8             Reached end of match?
+       BR   POS04             Not yet, so loop
+POS06  INC  @BYTES+1          Matched! Correct for 1 index in
+POS08  DST  @BYTES,@FAC       Character position of match
+       BR   LEN02             Convert to floating point
+* NOTE: Utilizes the LEN code to do the conversion and
+*       finish up.
+POS10  INC  @BYTES+1          Step index of match character
+       DEC  @FAC7             Move 1 position down 1st
+       DINC @FAC4              Argument
+       BR   POS02             Try to match again
+* JUMP ALWAYS
+POS12  CLR  @BYTES+1          NO MATCH POSSIBLE
+       BR   POS08
+*************************************************************
+* RPT$(A$,X) - Creates a string consisting of X copies of   *
+*              A$. If X is negative or non-numeric, an      *
+*              exception occurs. If A$ is not a string, an  *
+*              exception occurs.                            *
+*************************************************************
+RPTZ01 CALL LPAR              Insure "(", parse, insure ","
+       CALL PUSSTR            Insure a string and push it
+       XML  PARSE             Parse second argument
+       BYTE RPARZ
+       XML  SPEED             Must have
+       BYTE SYNCHK       *     ended on a
+       BYTE RPARZ        *      right parenthesis
+       CALL INTARG            Check numeric and convert
+       DMUL V@6(@VSPTR),@FAC  Compute result length
+       DCZ  @FAC1
+       BS   GA649
+WRNST2 CALL WARNZZ            Give truncation message
+       BYTE 19                * STRING TRUNCATED message
+       DST  255,@FAC2         Make it a maximum string
+GA649  DST  @FAC2,@BYTES      Copy requested string length
+       XML  GETSTR            Get the new string
+       XML  VPOP              Retrieve the original string
+* At this point BYTES should still contain the length
+       DST  @FAC6,@ARG        Copy original length in ARG
+       DCZ  @BYTES            Zero copies requested
+       BR   GA659
+       DCLR @ARG              So we copy zero!!!!!!!
+GA659  DEX  @ARG,@BYTES       Original length to BYTE
+       DST  @FAC4,@TEMP5      And also original start addr
+       CLR  @FAC8             Clear flag for LITS08
+       CALL LITS08            Create FAC and copy on copy
+* ARG contains total length now.
+       DST  @ARG,@FAC6        Store new length
+RPTZ02 DSUB @BYTES,@ARG       Subtract one copy
+       DCZ  @ARG              <<<<<THE WAY OUT
+       BS   XMLCON
+       DADD @BYTES,@SREF      Compute new start address
+       DCH  @ARG,@BYTES
+       BR   GA679
+       DST  @ARG,@BYTES       Truncate string
+GA679  MOVE @BYTES,V*TEMP5,V*SREF
+       BR   RPTZ02
+ 
+ 

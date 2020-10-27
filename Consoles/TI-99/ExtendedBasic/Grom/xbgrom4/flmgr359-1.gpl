@@ -1,0 +1,353 @@
+********************************************************************************
+       TITL 'FLMGR-359'
+*************************************************************
+*                        GROM HEADER                        *
+*************************************************************
+*    Branch table routines                                  *
+*************************************************************
+       BR   DISPL1            DISPLAY routine
+       BR   DELET             DELETE routine
+       BR   PRINT             PRINT routine
+       BR   INPUT             INPUT routine (not yet impelemeted)
+       BR   OPEN              OPEN routine
+       BR   CLOSE             CLOSE routine
+       BR   RESTOR            RESTORE routine
+       BR   READ              READ routine
+       BR   GETDAT            Get DATA from ERAM/VDP (not used)
+       BR   CLSALL            CLOSE ALL OPEN FILES subroutine
+       BR   SAVE              SAVE routine
+       BR   OLD               LOAD routine
+       BR   LIST              LIST routine
+       BR   OUTREC            Output record routine
+       BR   EOF               End of file routine
+       BR   ACCEPT            ACCEPT routine
+       BR   SRDATA            Search "DATAZ" routine
+       BR   SUBREC            RECORD routine
+       BR   CHKEND            Check EOS
+       BR   OLD1              A subroutine for LOAD
+       BR   MERGE             MERGE a program
+       BR   GRMLST            List a line out of ERAM
+       BR   GRSUB2            Read 2 bytes of data from ERAM/VDP
+       BR   GRSUB3            Read 2 bytes of data from ERAM/VDP
+*                             with resetting possible breakpoint
+       BR   LINPUT              LINPUT statement
+*************************************************************
+*               OPEN STATEMENT HANDLER                      *
+* Handle the BASIC OPNE statement. A legal syntax can only  *
+* be something like                                         *
+*      OPEN #{exp}:{string-exp}[,{open-options}]            *
+* in which {open-option} is any of the following            *
+* DISPLAY, INPUT, VARIABLE, RELATIVE, INTERNAL, SEQUENTIAL, *
+* OUTPUT, UPDATE, APPEND, FIXED or PERMANENT                *
+*                                                           *
+* Each keyword can only be used once, which is being checked*
+* with an OPTFLG-bit. For each specific option please refer *
+* to the related routine.                                   *
+* Scanning stops as soon as no next field starting with a   *
+* comma can be found.                                       *
+* NOTE: After the actual DSR OPEN has been preformed, the   *
+*       length of the record, whether VARIABLE or FIXED,    *
+*       has to be non-zero. A zero length will cause an     *
+*       INCORRECT STATEMENT error.                          *
+*************************************************************
+OPEN   CALL CHKFN             See if we specified any file
+       BS   ERRFE             Definitely not... no # or #0 or #-x
+       CALL CHKCON            Check and search given filenumber
+       BS   ERRFE             *** FILE NUMBER EXISTS ***
+* ERROR IF NOT STOPPED ON COLON
+       XML  SPEED             Must be at a
+       BYTE SYNCHK          *  colon or else
+       BYTE COLONZ          *   its an error
+       CALL PARFN             Parse filename and create PAB
+       DDEC @PGMPTR           Backup pgm pointer for next token
+OPTION XML  PGMCHR            Get next program character
+* Next field should start with a comma
+OPTIZ0 CEQ  COMMAZ,@CHAT
+       BR   CHECK
+* Enter HERE after comma exit in "SEQUENTIAL"
+OPTIZ1 XML  PGMCHR            Next token please...
+* Treat DISPLAY and INPUT as special cases
+       CEQ  DISPLZ,@CHAT
+       BS   OPTZ6
+       CEQ  INPUTZ,@CHAT
+       BS   OPTZ7
+       SUB  VARIAZ,@CHAT      Reduce keyword offset to 0
+       CHE  9,@CHAT           Keyword to high
+       BS   OPERR
+       CASE @CHAT             JUST IN CASE
+       BR   OPTZ01            Option VARIABLE
+       BR   OPTZ02                   RELATIVE
+       BR   OPTZ03                   INTERNAL
+       BR   OPTZ1                    SEQUENTIAL
+       BR   OPTZ2                    OUTPUT
+       BR   OPTZ3                    UPDATE
+       BR   OPTZ4                    APPEND
+       BR   OPTZ5                    FIXED
+*      BR   OPTZ0                    PERMANENT       <<<<<<<<<<<<<<<<<<<<<<<<<<<
+* CASE 0 - "PERMANENT" **************************************
+*  Only check for multiple usage. Since PERMANENT is the
+*  default, we might as well ignore it...
+OPTZ0  CLOG >04,@OPTFLG
+       BR   OPERR
+       OR   >04,@OPTFLG       Not used ... use now
+       BR   OPTION            Treat as simple default
+* CASE 2 - "RELATIVE" ***************************************
+*  Select relative record file in PAB and fall through in
+*  SEQUENTIAL code for multiple usage check. Also handle
+*  initial file-size there.
+OPTZ02 OR   >01,V@FLG(@PABPTR) Indicate RELATIVE RECORD
+* CASE 4 - "SEQUENTIAL" *************************************
+*  Checks for multiple usage. Remainder of syntax demads that
+*  we have something like:
+*                         [{numeric expression}],...
+*  In case only a comma is found, we use the default.
+*  Everything else has to be evaluated as a numeric
+*  expression, convertable to a 16-bit integer value.
+OPTZ1  CLOG >08,@OPTFLG
+       BR   OPERR
+       OR   >08,@OPTFLG       First time usage, ok
+       XML  PGMCHR            Check next token for default
+* Comma means default has been used
+       CEQ  COMMAZ,@CHAT
+       BS   OPTIZ1
+       CALL CHKEND            Check for end of statement
+       BS   CHECK
+       CALL CHKPAR            Preform combined checking & parsing
+       DST  @FAC,V@RNM(@PABPTR) Non-zero result
+       BR   OPTIZ0            Scan other options
+* Parse and check a numeric argument in here....
+CHKPAR XML  PARSE             If not ... parse up to comma
+       BYTE COMMAZ
+       CALL CHKCNV            Check and convert to integer
+       BS   OPERR             Oops..., someone made a mistake here
+       RTN                    Return to caller
+* CASE 5 - "OUTPUT" *****************************************
+*  Select mode code "01" and check for multiple usage. Use
+*  MFLAG bit in OPTFLG for checking.
+OPTZ2  OR   >02,V@FLG(@PABPTR)  Mode code = 01
+* CASE 6 - "UPDATE" *****************************************
+*  Default ... Check for multiple usage only...
+*  Test for previous usage of any mode setting
+OPTZ3  CLOG >01,@OPTFLG
+       BR   OPERR
+       OR   >01,@OPTFLG       If not... set "MODE USED" bit
+       BR   OPTION            Continue option scan
+* CASE 7 - "APPEND" *****************************************
+*  Mode code "11" indicates APPEND mode.
+OPTZ4  OR   >06,V@FLG(@PABPTR)  Mode code = 11
+       BR   OPTZ3
+* CASE 1 - "VARIABLE" ***************************************
+*  Change record type to VARIABLE and continue as FIXED
+OPTZ01 OR   >10,V@FLG(@PABPTR)  Indicate variable length mode
+* CASE 8 - "FIXED" ******************************************
+*  Fixed is default. Don't change anything, unless argument
+*  is given. In this case evaluate as numeric expression and
+*  check for 8-bit integer range...
+*  This routine is also used for VARIABLE !!!!!
+OPTZ5  XML  PGMCHR            Get next character
+       CEQ  COMMAZ,@CHAT      Could be some argument
+       BS   OPTZ55
+       CALL CHKEND            Could also be end of statement
+       BS   OPTZ55            It is an EOS
+       CALL CHKPAR            Check & parse expression
+* Check for byte overflow (records can only be up to 255
+* bytes in length)
+       CZ   @FAC
+       BR   OPERR
+       ST   @FAC1,V@LEN(@PABPTR) Select non-zero rec-size
+OPTZ55 CLOG >10,@OPTFLG
+       BR   OPERR
+       OR   >10,@OPTFLG       Prevent to much usage of modes
+       BR   OPTIZ0             Continue option scan
+* CASE 3 - "INTERNAL" ***************************************
+*  Select INTERANL file type and continue in DIPLAY
+OPTZ03 OR   8,V@FLG(@PABPTR)  Select INTERNAL type
+* CASE 9 - "DISPLAY" ****************************************
+*  Default. Only check for multiple usage of either DISPLAY
+*  or INTERNAL...
+OPTZ6  CLOG >02,@OPTFLG
+       BR   OPERR
+       OR   >02,@OPTFLG       Else set "DISPLAY/INTERAL" flag
+       BR   OPTION            Continue... DISPLAY is default
+* CASE 10 "INPUT" *******************************************
+*  Same as any other I/O type definition. Mode code "10" ....
+*  Continue in OPTZ3
+OPTZ7  OR   >04,V@FLG(@PABPTR) Mode code = 10
+       BR   OPTZ3
+* CLRFRE deallocates previously alocated (parts of) PAB's and
+* return with an error message
+CLRFRE CLR  @MNUM             Undo any allocation
+       ST   V@OFS(@PABPTR),@MNUM+1  We need the length for
+*                                    that
+*      V@OFS(@PABPTR) Was set up in PARFN routine
+       DADD @MNUM,@FREPTR     Update the first free world
+       RTN                    And return
+OPERR  CALL CLRFRE            First undo the allocation
+ERRSYN CALL ERRZZ             Then give an error
+       BYTE 3                 * SYNTAX ERROR
+* Continue with CHECK to conplete the actual OPEN
+CHECK  CALL CHKEND            Check EOS
+       BR   OPERR             Not EOS  : SYNTAX ERROR
+* If the user hasn't specified VARIABLE or FIXED, the
+* default specification depends on the file type.
+* Change current default (=VARIABLE) to FIXED for
+* RELATIVE files.
+       CLOG >01,V@FLG(@PABPTR) RELATIVE RECORD
+       BS   G8127
+       CLOG >10,V@FLG(@PABPTR) VARIABLE RECORD
+       BS   G8125
+FILZZ  CALL CLRFRE            Undo the PAB allocation
+       BR   ERRFE             FILE ERROR
+G8125  BR   G8131             Sequential file, check rec. mode
+G8127  CLOG >10,@OPTFLG       No definition yet
+       BR   G8131
+       OR   >10,V@FLG(@PABPTR) Force VARIABLE mode
+G8131  CALL CDSR              Call the DSR, return with error
+       BR   ERRZ2B             indication in COND...
+       DCLR V@RNM(@PABPTR)    Make sure we start with record
+* Check for undefined record length. The record length for
+* any type might be defined by the DSR
+       CZ   V@LEN(@PABPTR)
+       BS   FILZZ
+       ST   V@LEN(@PABPTR),@MNUM+1 Get record length
+       CLR  @MNUM             Create two byte result and
+       CLR  V@OFS(@PABPTR)     allocate - remove offset for
+*                              later use
+       DST  @MNUM,@FAC        - prepare for space claim
+* Check for special case : no PAB's yet
+       DCZ  @IOSTRT
+       BR   G8157
+       DST  @PABPTR,@IOSTRT   Simply enter the first pointer
+       BR   G8169
+G8157  DST  @IOSTRT,@STADDR   Search for the end of the chain
+G815A  DCZ  V*STADDR
+       BS   G8165
+       DST  V*STADDR,@STADDR  Keep on deferring
+       BR   G815A
+G8165  DST  @PABPTR,V*STADDR  Update last chain link
+G8169  DST  @PABPTR,V@BUF(@PABPTR) Set empty buffer first
+       XML  MEMCHK            Check memory overflow & string space
+       BS   ERRMEM            * MEMORY FULL
+       DSUB @MNUM,@FREPTR     Compute buffer entry address
+       DSUB @MNUM,V@BUF(@PABPTR) Correct buffer address in PAB
+       XML  CONT              Return to the parser
+*************************************************************
+*                    DELETE ROUTINE                         *
+* Use file # 0 for this operation. Parse the file name      *
+* string-expression as usual, and delete the PAB before     *
+* actually calling the DSR.                                 *
+*************************************************************
+DELET  CLR  @FNUM             Create file #0 - non-existing
+       CALL PARFN             Handle as normal PAB OPEN
+       CALL CHKEND            Check EOS first
+       BR   OPERR             Not EOS : go undo PAB allocation
+*                              and print SYNTAX ERROR
+       CLR  @MNUM       *  Delete PAB again before calling DSR
+       ST   V@OFS(@PABPTR),@MNUM+1  Create double byte PAB length
+       DADD @MNUM,@FREPTR     Update free word pointer
+       CALL IOCALL            Preform I/O call for actual delete
+       BYTE CZDELE
+       XML  CONT
+*************************************************************
+*                    CLOSE ROUTINE                          *
+* Syntax could be                                           *
+* CLOSE #{ num exp }  or CLOSE #{ num exp }:DELETE          *
+*                                                           *
+* Possibly output pending records before closing or         *
+* deleting the file.                                        *
+*************************************************************
+CLOSE  CALL CHKFN             Check for "no #" / "#0" cases
+       BS   ERRFE             Not for "CLOSE" you don't
+       CALL CHKCON            Check file number etc...
+       BR   ERRFE             *** FILE NUMBER NOT IN SYSTEM ***
+       CALL OUTEOF            Output pending records
+       ST   CZCLOS,V@COD(@PABPTR) Default to CLOSE I/O code
+       CEQ  COLONZ,@CHAT      Check for ":DELETE" spec.
+       BR   G81B8
+       XML  PGMCHR            Request next input token
+       XML  SPEED             Must be at a
+       BYTE SYNCHK          *  "DELETE" else
+       BYTE DELETZ          *   its an error
+       ST   CZDELE,V@COD(@PABPTR) Change CLOSE to DELETE
+G81B8  CALL CHKEND            EOS?
+       BR   ERRSYN            NO:SYNTAX ERROR
+       CALL CDSR              Call DSR with whatever we have
+       BR   CLOSZ1            Reset means error....
+       CALL DELPAB            Delete PAB and data-buffer
+       XML  CONT              Return to parser routine
+CLOSZ1 DST  V@4(@PABPTR),@ARG Save error code for message
+       CALL DELPAB            Now delete the PAB
+       DST  @FREPTR,@PABPTR   Store error-code in free memory
+       DSUB 6,@PABPTR         Create standard size PAB
+       DST  @ARG,V@4(@PABPTR) Copy error-code
+       BR   ERRIO             Exit to error-routine
+*************************************************************
+*                   CLOSE ALL ROUTINE                       *
+* CLOSE all the existing PABs ... ignore errors             *
+*                                                           *
+* NOTE: "CLSLBL" is used in the I/O error routine to        *
+*       determine if a warning should be given rather than  *
+*       an error.                                           *
+*************************************************************
+G81DD  DST  V*PABPTR,@PABPTR
+CLSAZ0 DCZ  V*PABPTR          Find last PAB in chain
+       BR   G81DD
+       CALL OUTEOF            Take care of pending records
+CLSLBL ST   CZCLOS,V@COD(@PABPTR) Select CLOSE code
+       CALL CDSR              CLOSE to DSR routine
+       CALL DELPAB            Delete PAB - ignore CLOSE errors
+CLSALL DST  @IOSTRT,@PABPTR   Start at beginning of chain
+       DCZ  @IOSTRT           Continue until done
+       BR   CLSAZ0
+       RTN                    And return
+*************************************************************
+*                   RESTORE ROUTINE                         *
+* RESTORE can have any of four forms:                       *
+*                                                           *
+* RESTORE                     Restore to first DATA         *
+* RESTORE 20                  Restore DATA pointer          *
+* RESTORE #1                  Rewind file number 1          *
+* RESTORE #1, REC 2           Position file 1 at record 2   *
+*************************************************************
+RESTOR DCLR @FAC              Assume simple RESTORE
+       CEQ  NUMBEZ,@CHAT
+       BR   OLDCD
+       CALL CHKFN             Check for #<filenumber>
+       DCZ  @FAC              Found equivalent of #0
+       BS   OLDCZ0
+       CALL CHKCON            Check and decode file #
+       BR   ERRFE             Give error if file not there
+       CALL OUTEOF            Output pending record
+       DCLR V@RNM(@PABPTR)    Initialize to record 0
+       CALL PARREC            Parse possible record clause
+       CALL IOCALL            Call DSR routine with
+       BYTE CZREST          *   RESTORE I/O code
+       XML  CONT              Return if no error found
+* Following code is for handling RESTORE to line number
+* within program
+OLDCD  CALL CHKEND            Check for start with end
+       BS   OLDCZ0            If we have anything else
+       CALL LINE               in FAC (double)
+OLDCZ0 DCEQ @ENLN,@STLN
+       BR   G8233
+WRNNPP CALL WARNZZ            * NO PROGRAM PRESENT *
+       BYTE 29
+       B    TOPL15            Go back to toplevel
+G8233  DST  @ENLN,@LNBUF      Start at beginning of program
+       DSUB 3,@LNBUF          Backup for first line number
+* Check against given line number
+OLDCZ1 CALL GRSUB3            Read 2 bytes of line ptr from
+*                              line # table which is in ERAM/VDP
+       BYTE LNBUF           * Source address on ERAM/VDP
+*                             @EEE1: Destination addr on CPU
+       DCH  @EEE1,@FAC        Try to get something higher
+       BR   G824E
+       DCEQ @STLN,@LNBUF      Last line in program
+       BS   ERRDAT
+       DSUB 4,@LNBUF          Get next entry in line # table
+       BR   OLDCZ1            Try again with next line
+G824E  DADD 3,@LNBUF          Undo subtraction
+       CALL DATAST            Setup pointer for READ
+       XML  CONT              Continue PARSE
+ 
+ 

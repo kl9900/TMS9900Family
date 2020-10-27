@@ -1,0 +1,558 @@
+ 
+*************************************************************
+* WARNZZ - Checks the special warning handling conditions   *
+* which can be set by an ON WARNING statement and does the  *
+* following based upon those conditions:                    *
+* ON WARNING PRINT - prints continues execution             *
+* ON WARNING STOP  - prints and stops                       *
+* ON WARNING NEXT  - ignores the warning and goes on        *
+*************************************************************
+WARNZZ DCLR @ERRCOD           Clear the error if form 9900
+       CLR  @EXPZ
+       FETCH @EXPZ+1          Get index into error table
+       DSLL 2,@EXPZ           Multiply by 4
+       DADD ERRTAB,@EXPZ      Get addres of entry into table
+       MOVE 4,G@0(@EXPZ),@FAC10
+       CZ   @PRGFLG           If its imperative
+       BS   WRNZZ3             take defualt.
+       CLOG >02,@FLAG         If print turned on
+       BR   G6D35
+WRNZZ3 XML  SCROLL            Scroll the screen
+       MOVE 9,G@MSGWRN,V@NLNADD * WARNING
+       XML  SCROLL            Scroll the screen again
+       DST  NLNADD+2,@VARW    Start address behind warning
+       CALL TRACBK            Check for warning in UDF
+       BS   WRNZZ5            Was UDF so message already out
+       CALL ERPNT5            Print the message
+WRNZZ5 ST   3,@XPT
+* If imperative then continue on normally
+G6D35  CZ   @PRGFLG           If its imperative
+       BR   G6D3C
+       B    RETNOS
+* If warning continue turned on the continue
+G6D3C  CLOG >04,@FLAG         If contiue
+       BR   ERRZZ4
+       B    RETNOS
+ERRZZ4 CALL CLEAN             Clean up stack and s.t.
+ERRZZ5 DST  V@SAVEVP,@VSPTR   Restore value stack
+BTOP15 B    G6012             Finish up and go back
+*************************************************************
+* ERRZZ - Sets up an error stack entry based upon the       *
+* information passed to it by the caller and what it can    *
+* gather from the error table. It then either prints the    *
+* error message and aborts or goes to the line specified by *
+* a previously executed ON ERROR statement. The stack enrry *
+* looks like:                                               *
+* ----------------------------------------------------------*
+* | Error code | Severity | >69 | Luno # | EXTRAM | PGMPTR |*
+* | ^          | ^        | ^   | ^      | ^      | ^      |*
+* | FAC        | FAC1     | FAC2| FAC3   | FAC4   | FAC6   |*
+*-----------------------------------------------------------*
+* ERROR CODE - the error number                             *
+* SEVERITY   - Severity of the error                        *
+*      1     - Warning                                      *
+*      5     - Possibly recoverable                         *
+*      9     - Fatal, unrecoverable                         *
+* >69  ERROR STACK ENTRY ID                                 *
+* LUNO #     - Luno # if file error or -1 if non-file error *
+* EXTRAM, PGMPTR - Information to indicate the line # of    *
+*                  the error                                *
+*************************************************************
+*-----------------------------------------------------------*
+* In order to fix MEMORY FULL error occurring during MERGE  *
+* execution will leave the file open to disk DSR bug,       *
+* following lines should be added,                          *
+*??????? ????????????????????? ???????????????? ????????????*
+* This note for the reshipment of FLMGR after 6/10/81       *
+* IOCALL routine are copied from FLMGR here, becuase FLMGR  *
+* is not in the branch table in FLMGR.                      *
+*??????? ????????????????????? ???????????????? ????????????*
+* ERRZZ DST  V@MRGPAB,@PABPTR                               *
+*       DCZ  @PABPTR          Error must occur in EDITLN    *
+*                              routine during MERGEing      *
+*       BS   HERE                                           *
+*       CALL IOCALL           Close all files               *
+*       DATA CZCLOS                                         *
+* HERE  ...........program continues                        *
+* A statement BR IOCALL needs to be added in FLMGRS, which  *
+* is not going to be reshipped at this time 6/10/81         *
+* Therefore, the following patch is used                    *
+*???????????????????????????????????????????????????????????*
+ERRZZ  DEX  V@MRGPAB,@PABPTR                                *
+       DCZ  @PABPTR           Error must occur in EDITLN    *
+*                              routine during MERGEing      *
+       BS   G6D74                                           *
+       MOVE 30,@FAC,V@>03C0   Save FAC area                 *
+       DST  @PABPTR,@FAC12    Get the PAB pointer in FAC    *
+       DADD NLEN,@FAC12       Compute name length entry     *
+       ST   1,V@4(@PABPTR)    * Select name length entry    *
+       CALL CALDSR            Call actual DSR line routine  *
+       BYTE 8                                               *
+       MOVE 30,V@>03C0,@FAC                                 *
+* Ignore the error coming back from DSR                     *
+       DCLR @PABPTR           Clear V@MRGPAB in case        *
+*                              any kind of I/O operation    *
+*                              following MERGE              *
+*                              (Also for the DEX statement) *
+G6D74  DEX  V@MRGPAB,@PABPTR  Get the PABPTR back           *
+*-----------------------------------------------------------*
+       DCLR @ERRCOD           Clear error code if from 9900
+       DSUB @CURINC,@CURLIN   Just in case in autonum mode
+       DCEQ CRNBUF,@SYMTAB    If prescanning r.h.
+       BR   G6D87              of UDF and parameter in
+       DST  V@CRNBUF+2,@SYMTAB crunch buffer, fix SYMTAB
+G6D87  CLR  @EXPZ             Get index into error table
+       FETCH @EXPZ+1          Get index into error table
+       DSLL 2,@EXPZ           Multiply index by 4
+       DADD ERRTAB,@EXPZ      Address of table entry
+       MOVE 4,G@0(@EXPZ),@FAC10  Get table entry
+       ST   RSTK+2,@SUBSTK    Init subroutine stack but allow
+*                              for GROM return address
+       CZ   @FAC13            If message only
+       BR   G6DAF
+ERRZZR CALL ERPRNT            Display the error message
+       DCEQ MSGFST,@FAC10     If * READY *
+       BR   G6DAD
+       CALL CLSALL            Close all files
+G6DAD  BR   ERRZZ4             and clean up
+G6DAF  CZ   @PRGFLG           If imperative-default
+       BS   ERRZ1
+       DCZ  V@ERRLN           If error turned off
+       BR   G6DBF
+ERRZ1  CALL TRACBK            Check for UDF
+       BS   ERRZZ4            Was UDF, message already out
+       BR   ERRZZR            Assume normal error
+*
+* Error turned on. Now build the error entry
+*
+G6DBF  CALL CLEAN             Clean up the stack
+       DST  @FAC12,@FAC       Put in error & severity
+       ST   >69,@FAC2         Error stack ID
+       DCEQ MSG130,@FAC10     If I/O error
+       BR   G6DD6
+       ST   V@2(@PABPTR),@FAC3  *  Put in LUNO #
+       OR   >80,@FAC1         And indicate an I/O error
+G6DD6  DST  @EXTRAM,@FAC6     Save line pointer
+       DST  @SMTSRT,@FAC4     Save pointer to beginning of
+*                              statement
+       DST  @VSPTR,@ARG       Must check for room on stack
+       DADD 24,@ARG           Need 24 to help out VPUSH
+       DCH  @ARG,@STREND      If not room
+       BS   G6DFD
+       CALL ERPRNT            Put out the message anyway
+       DST  MSG39,@FAC10      Memory full message
+       CLR  @PRGFLG           Don't print a line #
+       CALL ERPRNT            Print it too
+       MOVE 8,G@MSGERR,V@NLNADD-18
+       BR   ERRZZ5            And give up
+G6DFD  XML  VPUSH             Push the error entry
+       DCLR @EXTRAM           Clear on-error entry
+       DEX  V@ERRLN,@EXTRAM   Set line pointer & clear on-error
+       CALL GRSUB2            Read the line text pointer VDP
+*                              ERAM (use GREAD1) or VDP
+       BYTE EXTRAM          * @EXTRAM : Source address
+*                              in ERAM/VDP
+       DST  @EEE1,@PGMPTR     Put the result in @PGMPTR
+       XML  CONTIN            And go to the line
+*************************************************************
+* ERPRNT - Print an error or warning message                *
+*                                                           *
+* ERPRNT - Entry point for ERROR                            *
+* ERPNT5 - Entry point for WARNING                          *
+*************************************************************
+ERPRNT CALL G601C             Load the character table
+       XML  SCROLL            Scroll the screen
+       ST   >2A+OFFSET,V@NLNADD Put the * in
+       DST  NLNADD+2,@VARW    Set up for the message
+ERPNT5 CLR  @KEYBD            Enable main console
+       MOVE 1,G@0(@FAC10),@ARG1  Get message length
+       CLR  @ARG
+       MOVE @ARG,G@1(@FAC10),V*VARW   Display
+       DADD @ARG,@VARW        Start location for " IN "
+       DCEQ MSG130,@FAC10     "* I/O ERROR [xx]xy"
+       BR   G6E4D
+       DINC @VARW             Update for one space
+*                              separation
+       ST   V@>04(@PABPTR),@ARG3   * Create high order result
+       CLR  @ARG2             Only display high order decimal
+       CALL DISO              Display this number
+       ST   V@>05(@PABPTR),@ARG3  * Get low order result
+       SRL  5,@ARG3           Remove mose identification bit
+       CALL DISO              Output the number in decimal
+G6E4D  DCEQ MSGFST,@FAC10
+       BS   G6E79
+       CALL TONE2             Wake up the idiot!!!!
+       CZ   @PRGFLG           If program, print line #
+       BS   G6E79
+       DCH  >02F6,@VARW       It will pass EOL
+       BR   G6E66
+       XML  SCROLL            Display on next line
+       DST  NLNADD+1,@VARW    Indent for the "IN"
+G6E66  DST  >C9CE,V@1(@VARW)   * Put in the "in"
+       DADD 4,@VARW           Display location for line
+       ST   @CHAT,@EXPZ       ASC destroys CHAT
+       CALL ASC               DISPLAY THE LINE #
+       ST   @EXPZ,@CHAT       Restore CHAT
+G6E79  XML  SCROLL
+       RTN
+*************************************************************
+* LLIST - Lists one program line on the screen. The         *
+* entrypoint to the line is given in STPT.                  *
+* In this routine, FAC2 is used as a flag to indicate that  *
+* the most recent character output was an alphanumeric      *
+* character. If the next character is also an alphanumeric  *
+* character, then the two are separated by a space.         *
+*************************************************************
+LLIST  CLOG >80,@FLAG         If program protected
+       BS   G6E85
+       CALL ERRZZ             * PROTECTION VIOLATION
+       BYTE 39
+G6E85  CALL OUTREC            Make room for a new line
+       DST  V*EXTRAM,@ARG2    Prepare for line # printing
+       AND  >7F,@ARG2         Reset possible BreakPoint
+       CALL OUTLN             Diplay line in free format
+       DST  @CCPADD,@VARW     Copy position for editing
+       DINC @VARW             Leave room for space
+       DST  V@2(@EXTRAM),@PGMPTR   * Get pointer to line
+LLISZ0 DST  >0020,@FAC2       Clear blank fill and set space
+LLIZ12 XML  PGMCHR            Get next token on line
+       CZ   @CHAT             Exit on end of line
+       BS   LLISZ9
+       CZ   @FAC3             If separator needed
+       BS   LLIZ15
+       EX   @CHAT,@FAC3       Save CHAT and bare the separator
+       CALL DSPCHR            Put the separator out
+       EX   @CHAT,@FAC3       Restore CHAT
+* Next thing to determine is whether or not we need a space
+* for separation with the next stuff.
+LLIZ15 CLR  @FAC3             Assume we'll get alphanumeric
+       CEQ  SSEPZ,@CHAT       If double-colon
+       BS   LLIZ16
+       CEQ  COLONZ,@CHAT      If colon now and colon
+       BR   G6EC4
+LLIZ16 CEQ  COLONZ,@FAC        before-separater
+       BS   LLIZ17
+G6EC4  CHE  COMMAZ,@CHAT      Figure out separator range
+       BR   G6ECE
+       CHE  ORZ,@CHAT
+       BR   LLISZ2
+G6ECE  CH   NOTZ,@CHAT        Figure out separator range
+       BR   G6ED8
+       CHE  NUMCOZ,@CHAT
+       BR   LLISZ2
+G6ED8  ST   >20,@FAC3          Prepare for alfa indication
+       CZ   @FAC2              alfanum-alfanum combination
+       BS   LLISZ2
+       CEQ  >20,@FAC10        Don't ouput 2 spaces
+       BS   LLISZ2
+LLIZ17 ST   @CHAT,@FAC2       Save CHAT somewhere
+       ST   >20,@CHAT         And display a space
+       CALL DSPCHR
+       ST   @FAC2,@CHAT       Retrive CHAT
+LLISZ2 EX   @FAC3,@FAC2       Could be for the next time too
+* That takes care of all the extra spaces we might need
+       CLOG >80,@CHAT         Just copy variable names
+       BR   G6F0A
+G6EF8  CALL DSPCHR            Copy the character to output
+       XML  PGMCHR            Get the next character
+       CZ   @CHAT             But exit on EOL
+       BS   LLISZ9
+       CLOG >80,@CHAT
+       BS   G6EF8
+       CLR  @FAC             No spaces if ":" or "::"
+       BR   LLIZ15
+G6F0A  CEQ  NUMZ,@CHAT
+       BS   G6F17
+       CEQ  STRINZ,@CHAT
+       BR   LLISZ3
+       CALL DSPQUO            Display first quote of string
+* This place is the general location for strings both quoted and
+* unquoted.
+G6F17  XML  PGMCHR            Get string length in CHAT
+       ST   @CHAT,@FAC        Copy in temporary space
+G6F1C  CZ   @FAC              Also take care of empty strings
+       BS   G6F35
+       XML  PGMCHR
+       CZ   @FAC2             Alpha means unquoted string
+       BR   G6F2E
+       CEQ  QUOTE,@CHAT
+       BR   G6F2E
+       CALL DSPCHR            Display two quotes for one
+G6F2E  CALL DSPCHR            Display 2nd quote or char
+       DEC  @FAC              Update string length, get next
+       BR   G6F1C
+G6F35  CZ   @FAC2
+       BR   LLISZ1            Non-alfa end means extra
+       CALL DSPQUO            Display closing quote
+       ST   >20,@FAC2         Cause space before following
+       BR   LLISZ1             alpha
+* Try to decode line numbers and keywords
+LLISZ3 CEQ  LNZ,@CHAT         Decode line #
+       BR   G6F55
+       XML  PGMCHR            Get the high order byte first
+       ST   @CHAT,@ARG2
+       XML  PGMCHR
+       ST   @CHAT,@ARG3        information as collected here
+       CALL OUTLN             Display the actual information
+       BR   LLISZ1            And continue
+* Now it has to be a normal keyword
+G6F55  DST  KEYTAB,@FAC       Address of KEYTAB for search
+       XML  IO                Search keyword table
+       BYTE 0                 * Select table search
+*                      FAC8 returns with pointer to keyword
+*                      FAC4 has length
+LLISZ6 MOVE 1,G@0(@FAC8),@CHAT
+* And output the thus found character
+       CALL DSPCHR            Display character on screen
+       DINC @FAC8             Update FAC8 for next reference
+       DEC  @FAC5             Count number of characters
+       BR   LLISZ6            Always less then 255
+       CEQ  TREMZ,@FAC        No spaces after!!!
+       BS   LLISZ7
+       CEQ  REMZ,@FAC         No spaces after REM
+       BS   LLISZ7
+       CHE  COMMAZ,@FAC       Master stuff =>space
+       BR   LLISZ0
+       CEQ  USINGZ,@FAC       Master stuff =>space
+       BS   LLISZ0
+       CEQ  NUMBEZ,@FAC       "#" never followed by space
+       BR   LLISZ1
+LLISZ7 CLR  @FAC2             Avoid spaces behind here
+LLISZ1 CLR  @FAC3             Indicate separator not needed
+       BR   LLIZ12            Continue for next keyword
+*************************************************************
+* Convert a number from binary to ASCII                     *
+* Input  : binary number in ARG2 and ARG3                   *
+* Output : pointer to ASCII number in FAC11 with the actual *
+*          number lying just before and ending with FAC10.  *
+*          i.e. the last digit of the ASCII representation  *
+*          is in FAC10; number of digits in the number in   *
+*          ARG5                                             *
+*************************************************************
+CVRTLN CLR  @ARG5             Start with 0 characters
+       ST   ARG11,@ARG11      Select first address + 1
+G6F90  DCLR @ARG              Clear upper 2 bytes of 4 bytes
+       DEC  @ARG11            Go to next position
+       DDIV 10,@ARG           Compute least significant remainder
+       ADD  >30,@ARG3         Always < 10 off course
+       ST   @ARG3,*ARG11      Store it in ARG
+       DST  @ARG,@ARG2        Replace remainder by result
+       INC  @ARG5             Update total # of characters
+       DCZ  @ARG2             Until whole number converted
+       BR   G6F90
+LLISZ9 RTN
+* Output a line number to a device (or screen)
+OUTLN  CALL CVRTLN            Convert from binary to ASCII
+OUTLZ1 ST   *ARG11,@CHAT      Get the next character
+       CALL DSPCHR            Display the character
+       INC  @ARG11            Increment the character position
+       DEC  @ARG5             Decrement number of digits
+       BR   OUTLZ1            Output digit if not all out
+       RTN
+* Display number on the screen
+DISO   CALL CVRTLN            Convert from binary to ASCII
+DISPZ1 ST   *ARG11,V*VARW     Get more significant character
+       ADD  OFFSET,V*VARW     Display character on screen
+       DINC @VARW             Update screen pointer
+       INC  @ARG11            Get next position
+       DEC  @ARG5             Update count
+       BR   DISPZ1            Add loop until finished
+       RTN
+* Put out a quote
+DSPQUO ST   QUOTE,@CHAT       DISPLAY A QUOTE
+* Put out next character
+DSPCHR CH   @RECLEN,@CCPPTR   Action on end of screen
+       BR   G6FDE
+       CALL OUTREC            Output crrrent record
+       DSUB 32,@VARW          Keep track of begining of line
+G6FDE  ST   @DSRFLG,V*CCPADD  Put offset on screen
+       ADD  @CHAT,V*CCPADD    Add in the character
+       DINC @CCPADD           Bump output pointer
+       INC  @CCPPTR           Update current line positon
+       ST   @CHAT,@FAC10      FAC10 may be used by OUTREC !!
+       RTN
+*************************************************************
+* Static scanner to build the main symbol table and to build*
+* symbol tables for each subprogram and to build the        *
+* subprogram table. Checks some errors and aborts if any    *
+* detected.                                                 *
+*************************************************************
+*-----------------------------------------------------------*
+* Added the following 6/8/81  for NOPSCAN feature           *
+*  Flag PSCFG: >00 NOPSCAN                                  *
+*              >FF RESUME PSCAN                             *
+PRESCN ST   >FF,V@PSCFG       Default to PSCAN              *
+*-----------------------------------------------------------*
+       DCLR @CALIST           Initialize call list
+       DST  10,@DFLTLM        Set default array size
+       DCLR @XFLAG            Initialize prescan flag bits
+*                              and FOR/NEXT counter
+       CZ   @PRGFLG           If imperative
+       BR   G700B
+       DST  CRNBUF,@PGMPTR    Pointer to 1st token
+       XML  PGMCHR            Get the 1st token
+       XML  SCROLL            Scroll the screen
+       CALL SCAN10            Do the static scan of the line
+       BR   G7013             If program
+G700B  CALL SCAN              Scan the program
+       AND  >90,@FLAG         Reset all the flags but the
+*                              TRACE & LIST/EDIT protection
+       DCLR @LSUBP
+G7013  DST  V@SAVEVP,@VSPTR   Initialize VSPTR
+       B    EXEC              Execute the program or statement
+*************************************************************
+*                     Static Scanner                        *
+*************************************************************
+SCAN   DST  @ENLN,@EXTRAM     1st address of line # table
+       DADD 3,@EXTRAM
+       DCLR @SYMTAB           Clear the symbol table
+       DCLR @SUBTAB           Clear the subprogram table
+       CZ   @RAMTOP
+       BR   G7031
+       DST  @STLN,@FREPTR     Initialize free-space pointer
+       DDEC @FREPTR           Back up from line # table
+       BR   G703B
+G7031  DST  @STLN,@RAMFRE     Initialize ERAM free-space
+       DDEC @RAMFRE           pointer
+       DST  @>8370,@FREPTR    Initialize with no pgm in VDP
+G703B  CLR  @BASE             OPTION BASE = 0
+       DST  @FREPTR,@STRSP    Initailize string space
+       DST  @STRSP,@STREND
+       DST  @STLN,@LINUM
+       DINCT @LINUM           Point to last line in program
+* THE FOLLOWING 20 STATEMENTS CANNOT BE SEPARATED OR THE        <<<<<<<<<<<<<<<<
+* ASSEMBLY LANGUAGE CODE WILL NOT WORK - SRH                    <<<<<<<<<<<<<<<<
+       XML  SCNSMT            Scan the program                  <<<<<<<<<<<<<<<<
+       BYTE 0               * Entire program flag               <<<<<<<<<<<<<<<<
+SCAN10 XML  SCNSMT            Scan the statement                <<<<<<<<<<<<<<<<
+       BYTE 2               * Single statement flag             <<<<<<<<<<<<<<<<
+       BR   SCANRT            Normal end of scan            0   <<<<<<<<<<<<<<<<
+       BR   SCNDEF            Scan a def                    2   <<<<<<<<<<<<<<<<
+       BR   SCNDIM            Scan a dim                    4   <<<<<<<<<<<<<<<<
+       BR   CALLS             Scan a call                   6   <<<<<<<<<<<<<<<<
+       BR   SCNOPT            Scan an option base           8   <<<<<<<<<<<<<<<<
+       BR   SUBS              Scan a sub                    A   <<<<<<<<<<<<<<<<
+       BR   SUBNDS            Scan a subexit                C   <<<<<<<<<<<<<<<<
+       BR   SUBNDS            Scan a subend                 E   <<<<<<<<<<<<<<<<
+       BR   CALENT            Call ENTER                   10   <<<<<<<<<<<<<<<<
+       BR   ERROLP            * ONLY LEGAL IN A PROGRAM    12   <<<<<<<<<<<<<<<<
+       BR   ERRNWF            * NEXT WITHOUT FOR           14   <<<<<<<<<<<<<<<<
+       BR   ERRFNN            * FOR/NEXT NESTING           16   <<<<<<<<<<<<<<<<
+       BR   ERRMS             * MISSING SUBEND             18   <<<<<<<<<<<<<<<<
+       BR   ERRSYX            * SYNTAX ERROR               1A   <<<<<<<<<<<<<<<<
+       BR   ERRMEM            * MEMORY FULL                1C   <<<<<<<<<<<<<<<<
+       BR   ERRIBS            * ILLEGAL AFTER SUBPROGRAM   1E   <<<<<<<<<<<<<<<<
+*
+*                    SPECIALLY SCANNED STATEMENTS
+* DIM STATEMENT
+SCNDIM CLOG >40,@XFLAG
+       BR   ERRSYX
+G7073  CALL ENTER             Declare this symbol
+       CEQ  COMMAZ,@CHAT      Loop if more
+       BS   G7073
+       BR   SCAN25            Must have EOL now
+* OPTION BASE STATEMENT
+SCNOPT CALL IMPIF             Can't be imperative or in "IF"
+       CALL PGMERR            OPTION - therefore must be BASE
+       CLOG >02,@XFLAG
+       BR   ERROBE
+*                             Error if OPTFLG already set
+       CALL CHKSYN            Must have a "BASE"
+       BYTE BASEZ
+       CALL CHKSYN            Must have a numeric constant
+       BYTE NUMCOZ
+       CALL CHKSYN            Must have 1-char numeric constant
+       BYTE 1
+       CLR  @BASE             Assume BASE=0
+       SUB  >30,@CHAT         Must be 0 or 1
+       BS   SCAN20            OK if 0
+       DEC  @CHAT             Check for a 1
+       BR   ERROBE            If it was not a 1 then ERROR
+       INC  @BASE             Set OPTION BASE=1
+SCAN20 OR   >02,@XFLAG        Set the option base flag
+SCAN22 XML  PGMCHR            Now - check for end-of-line
+SCAN25 CALL CHKEND            If not EOL or :: or !    -error
+       BS   CONSCN            If EOS - continue scan
+       BR   ERRSYX            * SYNTAX ERROR
+* DEF STATEMENT
+SCNDEF CALL IMPIF             Can't be imperative or in "IF"
+       OR   >84,@XFLAG        Set function bit
+*                             Set ENTERX bit
+       CALL ENTER             Enter the function name
+*                             ENTER resets function bit
+       CLOG >07,V*SYMTAB      Did function have parm?
+       BS   SCAN55            No...
+       OR   >80,@XFLAG        >80 call for parm enter
+       OR   >08,@FLAG         Fake it so symbol table
+*                              searches won't be made
+       CALL ENTERW            Enter the parameter
+       AND  >F7,@FLAG         Reset function bit
+       CALL CHKSYN            Complex symbol must be
+       BYTE RPARZ           *  followed by ")="
+       CALL CHKSYN
+       BYTE EQUALZ
+       MOVE 29,V*SYMTAB,V@CRNBUF
+       DST  V@CRNBUF+4,@VAR0  Get pointer to name
+       CZ   @RAMTOP           If ERAM program
+       BS   G70EB
+* If ERAM must fix up the name pointer because the name was
+* moved too
+       DSUB @SYMTAB,@VAR0     Offset into entry
+       DADD CRNBUF,@VAR0      New location of name
+       DST  @VAR0,V@CRNBUF+4  Put it in
+G70EB  DST  V@2(@SYMTAB),@FREPTR  * Reset free space pointer
+       DST  CRNBUF,@SYMTAB    Point into crunch buffer
+       DDEC @FREPTR
+SCAN35 CALL CHKEND            If EOL or ! or ::
+       BS   SCAN50            Yes
+       CGT  >00,@CHAT
+       BS   SCAN40
+       CEQ  NUMZ,@CHAT        If numeric - skip it
+       BS   SCAN45
+       CEQ  STRINZ,@CHAT      If string - skip
+       BR   G710D
+SCAN45 CALL SKPSTR            Skip the string or numeric
+G710D  XML  PGMCHR            Get next charater
+       BR   SCAN35
+* Jump always
+SCAN40 OR   >80,@XFLAG        Make an ENTERX (>80)call
+       CALL ENTERX            Enter the symbol
+**** Relink to keep parameter at the beginning of the table
+       DCEQ CRNBUF,@SYMTAB    If no entry
+       BS   SCAN35
+       DST  V@CRNBUF+2,V@2(@SYMTAB)  * Put link in
+       DST  @SYMTAB,V@CRNBUF+2      Put new pointer in
+       DST  CRNBUF,@SYMTAB    Put new pointer in
+       BR   SCAN35            Go on
+* Jump always
+SCAN50 DST  V@CRNBUF+2,@SYMTAB  Delink the parameter
+       BR   CONSCN            Continue the scan
+SCAN55 CALL CHKSYN
+       BYTE EQUALZ
+       BR   CONSCN
+CALENT OR   >80,@XFLAG        Set enterx (>80) flag
+       CALL ENTERX            Enter in symbol table
+CONSCN XML  SCNSMT            Return to 9900 code to resume
+       BYTE 1               * Return call to 9900 code
+IMPIF  CLOG >40,@XFLAG        Not in if
+       BR   ERRSYX
+IMPILL CZ   @PRGFLG           Program mode - OK - return
+       BR   SCANRT
+ERROLP CALL ERRZZ             If imperative - error
+       BYTE 27              * Only legal in a program
+* Syntax required token routine
+CHKSYN FETCH @FAC
+       CEQ  @FAC,@CHAT
+       BS   PGMERR
+ERRSYX CALL ERRZZ
+       BYTE 3                 * Syntax error
+CHKEND CLOG >80,@CHAT
+       BS   G7168
+       CHE  TREMZ+1,@CHAT
+       BS   G7168
+       CEQ  @>8300,@>8300     Force COND to "SET"
+       RTNC
+G7168  CZ   @CHAT             Set COND according to CHAT
+SCANRT RTNC
+ 
+ 

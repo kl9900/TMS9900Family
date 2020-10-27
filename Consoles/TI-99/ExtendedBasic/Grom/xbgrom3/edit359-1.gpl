@@ -1,0 +1,553 @@
+********************************************************************************
+       TITL 'EDIT-359'
+*************************************************************
+*                        GROM HEADER                        *
+*************************************************************
+       GROM >6000
+       AORG 0
+       DATA >AA02,>0100,0,USER,0,LINK1,0,0
+*************************************************************
+*    Branch table for routines in EDIT                      *
+*************************************************************
+       BR   AUTON
+G6012  BR   TOPL15
+       BR   INITPG
+       BR   SPRINT            Initialize sprites.
+       BR   $                 Was ILL1
+       BR   TOPL10
+G601C  BR   CHRTAB
+       BR   SZRUN
+       BR   $                 Was GETLNB
+       BR   KILSYM
+       BR   $                 Was CRUNCH
+       BR   GETNB
+       BR   GETNB2
+       BR   GETCHR
+       BR   GETLN
+       BR   AUTO1
+       DATA TOPL02
+       BR   EDITLN
+       BR   GRSUB1            Read from ERAM (use GREAD/VDP)
+       BR   GWSUB             Write a few bytes to ERAM/VDP
+*    Error and system messages
+*      BASE 0,0,>300,>300,0,0,>60
+MSGERR BYTE >A9,>CE,>80,>A5,>D2,>D2,>CF,>D2
+*           In Error
+MSGFST BYTE >07,>B2,>C5,>C1,>C4,>D9,>80,>8A
+*            Ready
+MSGBRK BYTE >0A,>A2,>D2,>C5,>C1,>CB,>D0,>CF,>C9,>CE,>D4
+*            Breakpoint
+MSGTA  BYTE >B4,>D2,>D9,>80,>A1,>C7,>C1,>C9,>CE
+*           Try Again
+MSGWRN BYTE >8A,>80,>B7,>C1,>D2,>CE,>C9,>CE,>C7
+*            * Warning
+MSG10  BYTE >10,>AE,>D5,>CD,>C5,>D2,>C9,>C3,>80
+*            Numeric
+       BYTE >AF,>D6,>C5,>D2,>C6,>CC,>CF,>D7
+*           Overflow
+MSG14  BYTE >0C,>B3,>D9,>CE,>D4,>C1,>D8,>80,>A5,>D2,>D2,>CF,>D2
+*            Syntax Error
+MSG16  BYTE >18,>A9,>CC,>CC,>C5,>C7,>C1,>CC,>80,>A1,>C6,>D4,>C5,>D2,>80
+*            Illegal After
+       BYTE >B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD
+*           Subprogram
+MSG17  BYTE >10,>B5,>CE,>CD,>C1,>D4,>C3,>C8,>C5,>C4,>80
+*           Unmatched
+       BYTE >B1,>D5,>CF,>D4,>C5,>D3
+*           Quotes
+MSG19  BYTE >0D,>AE,>C1,>CD,>C5,>80,>B4,>CF,>CF,>80,>AC,>CF,>CE,>C7
+*            Name Too Long
+MSG24  BYTE >16,>B3,>D4,>D2,>C9,>CE,>C7,>8D,>AE,>D5,>CD,>C2,>C5,>D2,>80
+*            String-Number
+       BYTE >AD,>C9,>D3,>CD,>C1,>D4,>C3,>C8
+*           Mismatch
+MSG25  BYTE >11,>AF,>D0,>D4,>C9,>CF,>CE,>80,>A2,>C1,>D3,>C5,>80
+*            Option Base
+       BYTE >A5,>D2,>D2,>CF,>D2
+*           Error
+MSG28  BYTE >14,>A9,>CD,>D0,>D2,>CF,>D0,>C5,>D2,>CC,>D9,>80
+*            Improperly
+       BYTE >B5,>D3,>C5,>C4,>80,>AE,>C1,>CD,>C5
+*           Used Name
+MSG34  BYTE >16,>B5,>CE,>D2,>C5,>C3,>CF,>C7,>CE,>C9,>DA,>C5,>C4,>80
+*            Unrecognized
+       BYTE >A3,>C8,>C1,>D2,>C1,>C3,>D4,>C5,>D2
+*           Character
+MSG36  BYTE >0B,>A9,>CD,>C1,>C7,>C5,>80,>A5,>D2,>D2,>CF,>D2
+*            Image Error
+MSG39  BYTE >0B,>AD,>C5,>CD,>CF,>D2,>D9,>80,>A6,>D5,>CC,>CC
+*            Memory Full
+MSG40  BYTE >0E,>B3,>D4,>C1,>C3,>CB,>80,>AF,>D6,>C5,>D2,>C6,>CC,>CF,>D7
+*            Stack Overflow
+MSG43  BYTE >10,>AE,>A5,>B8,>B5,>80,>B7,>C9,>D4,>C8,>CF,>D5,>D4,>80
+*            NEXT Without
+       BYTE >A6,>AF,>B2
+*           FOR
+MSG44  BYTE >10,>A6,>AF,>B2,>8D,>AE,>A5,>B8,>B5,>80
+*           FOR-NEXT
+       BYTE >AE,>C5,>D3,>D4,>C9,>CE,>C7
+*           Nesting
+MSG47  BYTE >15,>AD,>D5,>D3,>D4,>80,>A2,>C5,>80,>A9,>CE
+*            Must be in
+       BYTE >80,>B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD
+*            Subprogram
+MSG48  BYTE >19,>B2,>C5,>C3,>D5,>D2,>D3,>C9,>D6,>C5,>80
+*           Recursive
+       BYTE >B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD,>80,>A3,>C1,>CC,>CC
+*           Subprogram Call
+MSG49  BYTE >0E,>AD,>C9,>D3,>D3,>C9,>CE,>C7,>80,>B3,>B5,>A2,>A5,>AE,>A4
+*            Missing Subend
+MSG51  BYTE >14,>B2,>A5,>B4,>B5,>B2,>AE,>80,>B7,>C9,>D4,>C8,>CF,>D5,>D4
+*            RETURN Without
+       BYTE >80,>A7,>AF,>B3,>B5,>A2
+*           GOSUB
+MSG54  BYTE >10,>B3,>D4,>D2,>C9,>CE,>C7,>80
+*            String
+       BYTE >B4,>D2,>D5,>CE,>C3,>C1,>D4,>C5,>C4
+*           Truncated
+MSG57  BYTE >0D,>A2,>C1,>C4,>80,>B3,>D5,>C2,>D3,>C3,>D2,>C9,>D0,>D4
+*            Bad Subscript
+MSG60  BYTE >0E,>AC,>C9,>CE,>C5,>80,>AE,>CF,>D4,>80,>A6,>CF,>D5,>CE,>C4
+*           Line Not Found
+MSG61  BYTE >0F,>A2,>C1,>C4,>80,>AC,>C9,>CE,>C5,>80
+*           Bad Line
+       BYTE >AE,>D5,>CD,>C2,>C5,>D2
+*           Number
+MSG67  BYTE >0E,>A3,>C1,>CE,>87,>D4,>80,>A3,>CF,>CE,>D4,>C9,>CE,>D5,>C5
+*            Can't Continue
+MSG69  BYTE >1A,>A3,>CF,>CD,>CD,>C1,>CE,>C4,>80
+*            Command
+       BYTE >A9,>CC,>CC,>C5,>C7,>C1,>CC,>80,>C9,>CE,>80
+*           Illegal in
+       BYTE >B0,>D2,>CF,>C7,>D2,>C1,>CD
+*           Program
+MSG70  BYTE >17,>AF,>CE,>CC,>D9,>80,>AC,>C5,>C7,>C1,>CC,>80
+*            Only Legal
+       BYTE >C9,>CE,>80 >C1,>80,>B0,>D2,>CF,>C7,>D2,>C1,>CD
+*           in a Program
+MSG74  BYTE >0C,>A2,>C1,>C4,>80,>A1,>D2,>C7,>D5,>CD,>C5,>CE,>D4
+*            Bad Argument
+MSG78  BYTE >12,>AE,>CF,>80,>B0,>D2,>DF,>C7,>D2,>C1,>CD
+*            No Program
+       BYTE >80,>B0,>D2,>C5,>D3,>C5,>CE,>D4
+*            Present
+MSG79  BYTE >09,>A2,>C1,>C4,>80,>B6,>C1,>CC,>D5,>C5
+*            Bad Value
+MSG81  BYTE >17,>A9,>D1,>C3,>C3,>D2,>D2,>C5,>C3,>D4,>80
+*            Incorrect
+       BYTE >A1,>D2,>C7,>D5,>CD,>C5,>CE,>D4,>80,>AC,>C9,>D3,>D4
+*           Argument List
+MSG83  BYTE >0B,>A9,>CE,>D0,>D5,>D4,>80,>CF,>D2,>D2,>CF,>D2
+*            Input Error
+MSG84  BYTE >0A,>A4,>C1,>D4,>C1,>80,>A5,>D2,>D2,>CF,>D2
+*            Data Error
+MSG97  BYTE >14,>B0,>D2,>CF,>D4,>C5,>C3,>D4,>C9,>CF,>CE,>80
+*            Protection
+       BYTE >B6,>C9,>CF,>CC,>C1,>D4,>C9,>CF,>CE
+*           Violation
+MSG109 BYTE >0A,>A6,>C9,>CC,>C5,>80,>A5,>D2,>D2,>CF,>D2
+*            File Error
+MSG130 BYTE >09,>A9,>8F,>AF,>80,>A5,>D2,>D2,>CF,>D2
+*            I/O Error
+MSG135 BYTE >14,>B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD,>80
+*            Subprogram
+       BYTE >AE,>CF,>D4,>80,>A6,>CF,>D5,>CE,>C4
+*            Not Found
+MSG62  BYTE >0D,>AC,>C9,>CE,>C5,>80,>B4,>CF,>CF,>80,>AC,>CF,>CE,>C7
+*            Line Too Long
+MSGFRE BYTE >A2,>D9,>D4,>C5,>D3,>80,>A6,>D2,>C5,>C5
+*           Bytes Free
+MSGSFR BYTE >A2,>D9,>D4,>C5,>D3,>80,>CF,>C6,>80,>B3,>D4,>C1,>C3,>CB,>80
+*           Bytes of Stack
+       BYTE >A6,>D2,>C5,>C5
+*           Free
+MSGGFR BYTE >A2,>D9,>D4,>C5,>D3,>80,>CF,>C6,>80,>B0,>D2,>CF,>C7,>D2,>C1
+*           Bytes of Program
+       BYTE >CD
+MSGGF1 BYTE >B3,>D0,>C1,>C3,>C5,>80,>A6,>D2,>C5,>C5
+*           Space Free
+MSGCIS BYTE >B5,>A4,>A6,>80,>B2,>C5,>C6,>D3,>80,>A9,>D4,>D3,>C5,>CC,>C6
+*           UDF Refs Itself
+MSGCF  BYTE >A3,>C1,>CC,>CC,>C5,>C4,>80,>A6,>D2,>CF,>CD
+*           Called From
+MSG56  BYTE >16,>B3,>D0,>C5,>C5,>C3,>C8,>80,>B3,>D4,>D2,>C9,>CE,>C7,>80
+*            Speech String
+       BYTE >B4,>CF,>CF,>80,>AC,>CF,>CE,>C7
+*           Too Long
+*      BASE 0,0,>0300,>0300,0,0,0
+USER   DATA 0,TOPLEV
+       BYTE 17
+       TEXT 'TI EXTENDED BASIC'
+DSCLOD BYTE 9
+       TEXT 'DSK1.LOAD'
+       BYTE 0
+SPCCHR BYTE >00,>7C,>7C,>7C,>7C,>7C,>7C,>00     * CURSOR CHARACTER
+       DATA 0,0,0,0                             * EDGE CHARACTER
+VDPREG BYTE >E0,>00,>20,>00,>06,>00
+*************************************************************
+*            START OF BASIC INTERPETER                      *
+*************************************************************
+TOPLEV CLR  V@>0370           Initialize temp area
+       MOVE 77,V@>0370,V@>0371
+       ST   5,@KEYBD          Select full keyboard
+       SCAN
+       CZ   @KEYBD
+       BR   G6388             99/4A Console?
+       ST   >01,V@CONFLG      Select 99/4A console
+G6388  CLR  @KEYBD
+       DST  NLNADD,V@BUFSRT   Initialize edit-buffer start
+       DST  NLNADD,V@BUFEND   Initialize edit-buffer end
+       MOVE 2,G@ATNZZ,@INTRIN Get address of ATNZZ
+       AND  >1F,@INTRIN       Throw away the BR opcode
+       DADD >5B,@INTRIN       Address of polynomial constants
+       ST   >FF,V@LODFLG      indicate try auto-boot
+*-----------------------------------------------------------*
+* Add the following line for fixing "MEMORY FULL" error     *
+* occurring during MERGE execution will leave the file open *
+* to disk DSR bug, 5/19/81                                  *
+SZNEW  CLR  V@MRGPAB          Initialize merged temporary   *
+*                              for PAB pointer              *
+*-----------------------------------------------------------*
+       ST   RSTK,@SUBSTK      Load base of subroutine stack
+       CALL CHRTA2            Load character table
+       CLR  @FLAG             Initialize flag byte
+       DCLR @BUFLEV           Initialize crunch buffer level
+       CALL CLSALL            Close all open files
+       CLR  @DATA             Initialize READ/DATA pointer
+       DST  VRAMVS,@VSPTR     Initialize base of value stack
+       DST  @VSPTR,@STVSPT    Save in permanent base
+       DST  @VSPTR,V@SAVEVP
+       CALL INITPG            Initialize program & s.t.
+       CALL INTRND            Initialize random number
+       CZ   V@LODFLG
+       BS   TOPL02            If need auto-boot
+       CLR  V@LODFLG          Won't ever need to do again
+       CALL AUTOLD            Attempt an auto-boot
+*     Label TOPL02 is used by auto-boot in detection of errors.
+ERRRDY EQU  $
+TOPL02 CALL G6A84             Say READY
+       BYTE 0               *  returns to TOPL15
+TOPL05 CALL INITPG            Initialize program space
+TOPL10 CALL KILSYM            Kill the symbol table
+TOPL15 AND  >F7,@FLAG         If error in UDF execution
+       ST   5,@KEYBD          Select full keyboard
+       SCAN
+       CLR  @KEYBD
+TOPL20 ST   RSTK,@SUBSTK      Initialize subroutine stack
+TOPL25 DST  NLNADD,@VARW      Screen addr = lower left corner
+       CLR  @RAMFLG           Clear the RAMFLG
+       CLR  @PRGFLG           Make sure not in program mode
+* Check for auto-num mode
+       CLOG >01,@FLAG         If auto-num on
+       BS   TOPL35
+       DADD @CURINC,@CURLIN   Generate new line number
+       CGE  0,@CURLIN         >32767?
+       BS   TOPL30
+       AND  >FE,@FLAG         If out of range->exit auto-num
+       B    TOPL35            Merge in below
+* Must be a long branch!!
+TOPL30 DCEQ @ENLN,@STLN       Line might exist
+       BS   G6412
+       DST  @CURLIN,@FAC      Ready for program search
+       XML  SPEED
+       BYTE SEETWO          * Search for existence of line
+       BS   EDTZ05            COND set = line found
+G6412  XML  SCROLL            Scroll to the next line
+       DST  @CURLIN,@ARG2     New line #
+       CALL G6A7C             Display the line number
+       DINC @VARW             Following by a space
+       BR   G6420
+TOPL35 XML  SCROLL            Scroll the screen
+G6420  ST   >9E,V@NLNADD-1    Display the prompt character
+       CALL G6A76             Read in a line
+       CALL SAVLIN            Save input line for recall     <<<<<<<<<<<<<<<<<<<
+*    Crunch the input line
+       CLR  @ERRCOD           Assume no-error return
+       DST  CRNBUF,@RAMPTR    Initialize crunch pointer
+       XML  CRUNCH            CRUNCH the input line
+       BYTE 0              *  Normal crunch mode
+TOPL42 CASE @ERRCOD+1
+       BR   TOPL45            No error detected
+       BR   ERRSYN            *SYNTAX ERROR
+       BR   ERRBLN            *BAD LINE NUMBER
+       BR   ERRLTL            *LINE TOO LONG
+       BR   ERRNTL            *NAME TOO LONG
+       BR   ERRNQS            *UNMATCHED QUOTES
+       BR   ERRCIP            *COMMAND ILLEGAL IN PROGRAM
+       BR   ERRIVN            *UNRECOGNIZED CHARACTER
+TOPL45 DCZ  @FAC              Line # present
+       BS   TOPL55
+       CLOG >01,@FLAG         Not AUTONUM
+       BR   G645B
+       CEQ  >0D,@RKEY         Must be up or down
+       BS   G645B
+       CEQ  >01,@CHAT         Start EDIT mode
+       BR   G645B
+       B    EDTZZ0
+G645B  CALL EDITLN            EDIT the line into the program
+       BS   TOPL25            If didn't change the line
+       BR   TOPL10
+*    Jump always
+TOPL55 CEQ  >01,@CHAT         If blank line - ignore
+       BS   TOPL25
+       CEQ  >EB,V@CRNBUF
+       BS   SZSIZE
+       CH   >08,V@CRNBUF      If imperative
+       BS   SZRUN4
+       DST  CRNBUF+1,@PGMPTR  Anticipate usage of PGMCHR
+       XML  PGMCHR            Prepare CHAT for OLD and SAVE
+       CASE V@CRNBUF          Select the keyword
+       BR   SZNEW             NEW                 0
+       BR   SZCONT            CONTINUE            1
+       BR   SZLIST            LIST                2
+       BR   SZBYE             BYE                 3
+       BR   SZNUM             NUMBER              4
+       BR   SZOLD             OLD                 5
+       BR   SZRES             RESEQUENCE          6
+       BR   SZSAVE            SAVE                7
+       BR   SZMERG            MERGE               8
+*    AUTO-BOOT - attempt a ---->   RUN "DSK1.LOAD"
+AUTOLD MOVE 11,G@DSCLOD,V@CRNBUF
+       DST  CRNBUF,@PGMPTR    DSK1.LOAD is in crunch buffer
+       BR   SZRUNL            Go to the RUN "NAME" CODE
+********************************* RUN *********************************
+SZRUN  CEQ  >C7,@CHAT         Ready for 'RUN "NAME" ----
+       BR   G64BF
+SZRUNL DST  @PGMPTR,@FAC14    Save pointer to name
+       XML  PGMCHR            Get the length of the string
+       ST   @CHAT,@FAC13      Put it in FAC13
+       CLR  @FAC12            Make it a double byte
+       DADD @FAC12,@PGMPTR    Skip the string
+       XML  PGMCHR            To see there is line no. ahead
+       CALL G8024             Only RUN "NAME" ?
+       BR   ERRSYN            No - junk on end so error
+       ST   STRINZ,@CHAT      Prepare for LOAD routine
+       DST  @FAC14,@PGMPTR    Restore the saved PGMPTR
+       CALL OLD1              Load the program
+       BR   SZRUN0            Go ahead from here
+*                              No RUN "NAME" : just run the
+*                              current program in memory
+G64BF  CEQ  >C9,@CHAT         Is there a line # after RUN?
+       BR   G64D5
+       XML  PGMCHR            Get the line number
+       ST   @CHAT,@FAC        Put it in FAC for SEETWO
+       XML  PGMCHR
+       ST   @CHAT,@FAC1
+       XML  PGMCHR            Should be EOS now
+       CALL G8024             Is it?
+       BS   SZRUN2            Yes - Go ahead from here
+*                              Just 'RUN'
+G64D5  CALL G8024             Should be EOS now
+       BR   ERRSYN            No-SYNTAX ERROR
+SZRUN0 DCEQ @ENLN,@STLN       Refuse without program
+       BS   ILLST
+       DST  @ENLN,V@START     Defualt to beginning
+       DSUB 3,V@START         Offset into the table
+       BR   SZRUN1            Merge in below
+*    Jump always
+SZRUN2 DCEQ @ENLN,@STLN       Refuse without program
+       BR   G64F9
+ILLST  XML  SCROLL            Scroll the screen for message
+       CLR  @PRGFLG           Prevent line # printing
+WRNNPP CALL G6A82
+       BYTE 29                * NO PROGRAM PRESENT
+       BR   TOPL15
+*    Condition can never be set since line 0 is prohibited
+G64F9  XML  SPEED
+       BYTE SEETWO          * Find the line in the program
+       BR   ERRLNF            * LINE NOT FOUND
+       DST  @EXTRAM,V@START   Program run starts here
+SZRUN1 CLR  @PRGFLG           No line #s if error in CLSALL
+       CALL CLSALL            Close any open files
+       DEC  @PRGFLG           Put it back in execution
+       ST   @RAMTOP+1,@RAMFLG Set/reset RAMFLG flag -- when
+       DCLR V@SEXTRM           in program mode & ERAM exists
+       DCLR V@ERRLN           Disallow CONTINUE after RUN
+       CALL KILSYM            Reset ERR handling to defualt
+       ST   RSTK,@SUBSTK      Set the stack empty
+SZRUN4 B    G6A70
+EDTZ05 B    EDTZ00
+**************************** CONTINUE ***********************
+SZCONT CALL GETNB             Check for END-OF-LINE
+       BR   ERRSY1            Junk on end of command
+       DCZ  V@SEXTRM          If can continue
+       BS   ERRCC
+       XML  SCROLL
+       DST  V@SEXTRM,@EXTRAM  Copy old line table pointer
+       DST  V@SPGMPT,@PGMPTR  Copy old text pointer
+       DST  V@SBUFLV,@BUFLEV  Copy old buffer level
+       DST  V@SLSUBP,@LSUBP   Copy last subprogram on stack
+       OR   V@SFLAG,@FLAG     Restore on-warning/break bits
+G6540  DCH  V@SAVEVP,@VSPTR   While extra on stack
+       BR   G654A
+       XML  VPOP              Pop them off
+       BR   G6540
+G654A  ST   >FF,@PRGFLG       Idicate program mode
+       ST   @RAMTOP+1,@RAMFLG Set/reset RAMFLG flag --- when
+*                              in program mode & ERAM exists
+       DCLR V@SEXTRM          Prevent unauthorized CONTINUE
+       DST  VRAMVS,V@SAVEVP   Init for program completion
+       XML  CONTIN            Resume normal execution
+ERRCC  CALL G6A84             Indicate error
+       BYTE 25              * "* CAN'T CONTINUE"
+**************************** NUMBER *************************
+*-----------------------------------------------------------*
+* Fix NUMBER command cause XB goes into a loop displaying   *
+* *PROTECTION VIOLATION when a PROTECTED program is in      *
+* memory bug, add the following line after label SZNEW      *
+SZNUM  CLOG >80,@FLAG         Check PROTEDTION VIOLATION    *
+       BR   ERRPV                                           *
+*-----------------------------------------------------------*
+       CALL AUTON             Get start line # and increment
+       OR   >01,@FLAG         Set AUTONUM bit for future use
+       DST  NLNADD,@VARW      Initialize screen address
+       BR   TOPL30            Jump back into it
+*    Jump always
+*************************************************************
+* AUTON - scans the NUM, LIST and RES commands for line     *
+* numbers. Leaves 1st line number in CURLIN and 2nd line    *
+* number in CURINC. AUTON is entry point from NUM to defualt*
+* to 100,10          AUTON is entry point for LIST.         *
+*************************************************************
+AUTON  DST  100,@CURLIN       Defualt start
+       DST  10,@CURINC        Defualt increment
+       ST   COMMA,@VARC       Comma is the separator
+AUTO1  DDEC @VARW             Don't miss the first character
+       CALL GETNB             Get 1st character after keyword
+       BS   AUTO2             If end of line
+       CALL GETLN             Try to get a line number
+       CZ   @BYTES            If digits gotten
+       BS   G658D
+       DST  @FAC,@CURLIN      Set initial
+G658D  CALL GETNB2            Allow spaces before separator
+       DCH  @VARA,@VARW       Check end of line
+       BS   AUTO2
+       CEQ  @VARC,@CHAT       If not correct separator
+       BR   ERRSY1
+       CALL GETNB             Get char after separator
+       BS   AUTO2             If end of line
+       CALL GETLN             Try to get 2nd number
+       CZ   @BYTES            If digits gotten
+       BS   G65A9
+       DST  @FAC,@CURINC      Save the increment
+G65A9  CALL GETNB2            Check EOL
+       BR   ERRSY1            NOT EOL: SYNTAX ERROR
+AUTO2  RTN
+*************************** SAVE ****************************
+SZSAVE DCEQ @ENLN,@STLN       If no program
+       BS   ILLST
+       B    SAVE
+*************************** OLD *****************************
+SZOLD  B    OLD
+*************************** BYE *****************************
+SZBYE  CALL CLSALL            Properly close all files
+       EXIT                   Return to MONITOR
+*************************** LIST ****************************
+SZLIST DCEQ @ENLN,@STLN       Refuse LIST without prrogram
+       BS   ILLST
+       B    LIST              LIST the program
+*************************** MERGE ***************************
+SZMERG B    MERGE                                            <<<<<<<<<<<<<<<<<<<
+*************************** SIZE ****************************
+SZSIZE CZ   V@CRNBUF+1        Must have EOL
+       BR   ERRSYN
+       XML  COMPCT            Garbage collect to free space
+       DST  @STREND,@ARG2     Get end of string space
+       DSUB @VSPTR,@ARG2      Subtract stack pointer
+       DSUB 63,@ARG2          Require 64-byte buffer
+       GT                     If less then 64 bytes left
+       BS   G65DF
+       DCLR @ARG2             Then indicate zero
+G65DF  XML  SCROLL            Scroll the screen
+       DST  NLNADD+2,@VARW    Begin a new line
+       CALL G6A7C             Display the number
+       CZ   @RAMTOP           If no ERAM present
+       BR   G65F7
+       MOVE 10,G@MSGFRE,V@1(@VARW)
+       BR   G6621
+G65F7  MOVE 19,G@MSGSFR,V@1(@VARW)
+       XML  SCROLL            Scroll the screen
+       DST  NLNADD+2,@VARW    Beginning of line
+       DST  @RAMFRE,@ARG2     Calculate space in ERAM
+       DSUB CPUBAS-1,@ARG2    Subtract base
+       CALL G6A7C             Display the number
+       MOVE 16,G@MSGGFR,V@1(@VARW)
+       XML  SCROLL
+       MOVE 10,G@MSGGF1,V@NLNADD+4
+G6621  XML  SCROLL            Scroll the screen
+       BR   TOPL15            Return to top-level
+************************** RESEQUENCE ***********************
+SZRES  DCEQ @ENLN,@STLN       If no program
+       BS   ILLST
+       CALL AUTON             Get start line & increment
+       DST  @ENLN,@FAC        Compute # of increments required
+       DSUB @STLN,@FAC        Actual number of lines - 1
+       DSRL 2,@FAC            Also takes care of this ^^^
+       DMUL @CURINC,@FAC      Compute space taken by increments      <<<<<<<<<<<
+       DCZ  @FAC              Bad line number
+       BR   ERRBLN
+       DADD @FAC2,@CURLIN     Compute highest address used
+       CARRY                  Watch out for overflow
+       BS   ERRBLN
+       CH   >7F,@CURLIN       Overflow is > 32767
+       BS   ERRBLN
+       ST   @RAMTOP+1,@RAMFLG Set/reset RAMFLG to use PGMCHR
+       CLR  @ARG4             To be used for double add
+       DST  @ENLN,@PGMPTR     Start at end of program
+       DST  @>8370,@VAR0      Assume VDP-top
+       CZ   @RAMFLG           But if ERAM exists
+       BS   G665F
+       DST  @RAMTOP,@VAR0     Top for ERAM
+G665F  DINCT @PGMPTR          Skip EOL and count
+G6661  XML  PGMCHR            VDP RAM or ERAM
+       CEQ  >C7,@CHAT         Skip strings
+       BS   SEQZ2
+       CEQ  >C8,@CHAT         If numeric
+       BR   G6677
+SEQZ2  XML  PGMCHR            Get next token (count)
+       ST   @CHAT,@ARG5       For double add
+       DADD @ARG4,@PGMPTR     Up to end of string
+       BR   G66AA
+G6677  CEQ  >C9,@CHAT         Check for line #
+       BR   G66AA
+       CALL GRSUB2            Get the line # in the text
+       BYTE PGMPTR          * @PGMPTR : Source addr on ERAM/VDP
+       DST  @EEE1,@FAC8       Save it temporary place
+       DST  @CURLIN,@ARG2     Set for searching
+       DST  @STLN,@ARG        Compare with entries in table
+G6689  CALL GRSUB3            Read the line # fromn ERAM
+*                              (use GREAD1) or VDP, reset
+*                              possible breakpoint too
+       BYTE ARG             * @ARG : Source addr on ERAM/VDP
+       DCEQ @EEE1,@FAC8
+       BS   SEQZ3
+       DSUB @CURINC,@ARG2     Update new line #
+       DADD 4,@ARG            And entry in line # table
+       DCH  @ENLN,@ARG        Stop if end of table
+       BR   G6689
+       DST  >7FFF,@ARG2       Default = 32767
+SEQZ3  CALL GWSUB             Write a few bytes of data
+*                 @PGMPTR : Destination address on ERAM/VDP
+*                 @ARG2   : Data
+*                 2       : Byte count
+       BYTE PGMPTR,ARG2,2
+       DINCT @PGMPTR          Pass two byte line # in text
+G66AA  DCLR @>83D6            Reset VDP timeout
+       DCHE @VAR0,@PGMPTR     And on end of program
+       BR   G6661
+*  Now update the line # table itself
+       DST  @STLN,@FAC        Start at beginning of table
+       DST  @CURLIN,@ARG      With start address off course
+G66B8  CALL GWSUB             Write a few bytes of data to
+*                              ERAM (use GWRITE) or VDP
+*                 @FAC   : Destination address on ERAM/VDP
+*                 @ARG   : Data
+*                 2      : Byte count
+       BYTE FAC,ARG,2
+       DSUB @CURINC,@ARG      Compute next line #
+       DADD 4,@FAC            And next entry in line # table
+       DCH  @ENLN,@FAC        Stop at end of line # table
+       BR   G66B8
+       CLR  @RAMFLG           Restore the ERAM flag
+       BR   TOPL25
+ 

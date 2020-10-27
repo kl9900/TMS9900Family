@@ -1,0 +1,326 @@
+ 
+ 
+*************************************************************
+* NOTE: FILES EXECSD, SUBS AND PART OF PSCANS ARE IN GROM 5 *
+*       AS BELOW:                                           *
+*-------NAME------------------ADDRESS---------BYTES LEFT----*
+*      EXECS                  >A000 - >AD92        5        *
+*      SUBS                   >AD98 - >B4DC        2        *
+*      PSCANS                 >B4E0 - >B7FA        5        *
+*                                                           *
+* Some of the error calls at the end of EXECS file are      *
+* shared and directly addressed by SUBS file. Any change in *
+* EXECS file which affects the address of error calls will  *
+* affect error reference in SUBS file. Make sure to edit    *
+* SUBS file in that situation.                              *
+*************************************************************
+       XML  CONT              XML CONT used by subprogram
+       BR   LITS05            Build FAC entry and GETSTR
+       BR   EXEC              Execute a program
+       BR   LINE
+       BR   DATAST
+       BR   ASC
+       BR   EXEC1
+       BR   EXEC6D            Save information on a break
+       BR   DELINK            Delink symbol table entry
+       BR   CONV1
+       BR   SQUISH            Called in error routine in PSC
+       BR   VALCD
+       BR   INTRND
+       BR   $
+GA01C  BR   LNKRTN            Routine to go back to XB program
+GA01E  BR   SPCOL             Clear breakpoint in line # routine
+       BR   UBSUB             Spare
+       BR   $
+       BR   $         ***     Please let me know it you add more
+*                     ***     branches here since it will affect
+*                     ***     the address of link list. Sumi.
+LINK1  DATA LINK2
+       STRI 'SOUND'
+       DATA SOUND
+LINK2  DATA LINK3
+       STRI 'CLEAR'
+       DATA CLEAR
+LINK3  DATA LINK4
+       STRI 'COLOR'
+       DATA COLOR
+LINK4  DATA LINK5
+       STRI 'GCHAR'
+       DATA GCHAR
+LINK5  DATA LINK6
+       STRI 'HCHAR'
+       DATA HCHAR
+LINK6  DATA LINK7
+       STRI 'VCHAR'
+       DATA VCHAR
+LINK7  DATA LINKA
+       STRI 'CHAR'
+       DATA CHARLY
+LINKA  DATA LINKB
+       STRI 'KEY'
+       DATA KEY
+LINKB  DATA LINKC
+       STRI 'JOYST'
+       DATA JOYST
+LINKC  DATA LINKD
+       STRI 'SCREEN'
+       DATA BORDER
+LINKD  DATA LINKE
+       STRI 'VERSION'
+       DATA VERS
+LINKE  DATA LINKS1
+       STRI 'ERR'
+       DATA ERRWXY
+*************************************************************
+*        START EXECUTION OF A PROGRAM OR STATEMENT          *
+* DATA:                                                     *
+*      RAM(START) points into line number table at the      *
+*      first line to execute                                *
+*      @PGMFLG contains >FF if executing a program or zero  *
+*      if imperative statement                              *
+*************************************************************
+EXEC   CZ   @PRGFLG           If program
+       BS   GA0AE
+       DST  V@START,@EXTRAM   Line to start execution at
+       DINCT @EXTRAM          Pointer to text pointer
+       CALL INTRND            Initialize random number
+EXEC1  ST   X2,@XPT           Initialize screen display
+       BR   GA0B2
+GA0AE  DST  CRNBUF,@PGMPTR    Executing out of crunch buffer
+GA0B2  DST  EXEC20,@RTNG      Address of return from ALC
+       DST  NUDTB,@NUDTAB     NUD table address for ALC
+       XML  EXECG             Execute XB
+EXEC20 CASE @ERRCOD+1         Check type of return            <<<<<<<<<<<<<<<<<<
+       BR   EXECND            0 - NORMAL END                  <<<<<<<<<<<<<<<<<<
+       BR   EXECBK            1 - BREAKPOINT
+       BR   EXECTR            2 - TRACE
+       BR   ERORZ             3 - ERROR
+       BR   WARNGZ            4 - WARNING
+       BR   ONERR             5 - ON ERROR
+       BR   UDF               6 - FUNCTION                    <<<<<<<<<<<<<<<<<<
+       BR   ONBRK             7 - ON BREAK                    <<<<<<<<<<<<<<<<<<
+       BR   CONCAT            8 - CONCATENATE STRINGS "&"     <<<<<<<<<<<<<<<<<<
+       BR   ONWARN            9 - ON WARNING
+       BR   GPLCAL            A - CALL STATEMENT              <<<<<ADD MORE?<<<<
+WARNGZ CH   >B0,@SUBSTK
+       BS   ERRSO
+* Stack overflow
+*                    ALLOW ROOM ON STACK FOR WARNING CALLS
+WRNN01 CALL WARNZZ        ONLY WARNING MSG FROM XB SUPPORT
+       BYTE 2       *         NUMERIC OVERFLOW
+       BR   CLRRTN            Clear ERRCOD and return
+*                    NORMAL END OF EXECUTION
+EXECND CZ   @PRGFLG           If imperative mode
+       BR   ERRRDY
+       CALL CHRTAB            Load the default character set
+       B    TOPL15            Return to top-level
+ERRRDY CALL ERRZZ             Display * READY *
+       BYTE 0
+* TRACE-MODE turned on - display line number
+EXECTR CLR  @VARW             Clear upper address byte
+       ST   @XPT,@VARW+1      Get current x-pointer
+       DADD NLNADD-3,@VARW    Make a valid screen address
+       DCH  NLNADD+22,@VARW   If might go off screen
+       BR   GA102
+       XML  SCROLL            SCROLL to next line
+       DST  NLNADD,@VARW      Re-initialize screen address
+GA102  ST   LESS+OFFSET,V*VARW Display open bracket "("
+       DINC @VARW             Increment screen address
+       CALL ASC               Convert line # into ASCII
+       ST   GREAT+OFFSET,V*VARW Display close bracket ")"
+       DSUB NLNADD-4,@VARW    Update the x-pointer
+       ST   @VARW+1,@XPT
+CLRRTN DCLR @ERRCOD           Clear the return vector
+       XML  RTNB              Return to ALC
+* BREAKPOINT OR BREAK-KEY RECIEVED
+EXECBK CZ   @PRGFLG           If break or program             <<<<<<<<<<<<<<<<<<
+       BS   ERRBRK
+       DST  @EXTRAM,@FAC8     @FAC8 : Source addr in ERAM     <<<<<<<<<<<<<<<<<<
+       DDECT @FAC8            Point to the line #             <<<<<<<<<<<<<<<<<<
+       CALL UBSUB1            Reset the breakpoint            <<<<<<<<<<<<<<<<<<
+       SCAN                   Get break key out of queue      <<<<<<<<<<<<<<<<<<
+EXEC6C DST  @PGMPTR,V@SPGMPT  Save text pointer
+EXEC6D DST  @EXTRAM,V@SEXTRM  Save line number table pointer
+       DST  @VSPTR,V@SAVEVP   Save value stack pointer
+       DST  @BUFLEV,V@SBUFLV  Save crunch buffer level
+       DST  @LSUBP,V@SLSUBP   Save last subprogram on stack
+       ST   @FLAG,V@SFLAG     Save FLAG for continue
+       AND  >63,V@SFLAG       Only warning and break bits     <<<<<<<<<<<<<<<<<<
+ERRBRK CALL ERRZZ             * BREAKPOINT
+       BYTE 1
+*************************************************************
+*               NUD / STATEMENT BRANCH TABLE                *
+*************************************************************
+NUDTB  BR   RECX              'RECORD'                    00
+       BR   NBREAK            'BREAK'                     02
+       BR   NUNBRK            'UNBREAK'                   04
+       BR   NTRACE            'TRACE'                     06
+       BR   NUNTRC            'UNTRACE'                   08
+       BR   NREADX            'READ'                      0A
+       BR   PRINTX            'PRINT'                     0C
+       BR   SZRUNX            'RUN'                       0E
+       BR   LINPUX            Reserved for LINPUT         10   <<<<<<<<<<<<<<<<<
+       BR   RESTOX            'RESTORE'                   12
+       BR   NRNDMZ            'RANDOMIZE'                 14
+       BR   INPUTX            'INPUT'                     16
+       BR   OPENX             'OPEN'                      18
+       BR   CLOSEX            'CLOSE'                     1A
+       BR   NPI               'PI'                        1C
+       BR   NMAX              'MAX'                       1E
+       BR   NMIN              'MIN'                       20
+       BR   RPTZ01            'RPT$'                      22
+       BR   ACCEPX            'ACCEPT'                    24
+       BR   EOFX              'EOF'                       26
+       BR   ASC01             'ASC'                       28
+       BR   POS01             'POS'                       2A
+       BR   VAL01             'VAL'                       2C
+       BR   STRZ01            'STR$'                      2E
+       BR   SEGZ01            'SEG$'                      30
+       BR   DELETX            'DELETE'                    32
+       BR   DISPLX            'DISPLAY'                   34
+       BR   LEN01             'LEN'                       36
+       BR   CHRZ01            'CHR$'                      38
+       BR   NRND              'RND'                       3A    <<<ADD MORE?<<<<
+* The following are long branches to another GROM
+EOFX   B    EOF
+SZRUNX B    SZRUN
+RECX   B    REC
+NREADX B    NREAD
+PRINTX B    PRINT
+RESTOX B    RESTOR
+INPUTX B    INPUT
+OPENX  B    OPEN
+CLOSEX B    CLOSE
+ACCEPX B    ACCEPT
+DISPLX B    DISPL1
+DELETX B    DELET
+LINPUX B    LINPUT
+*************************************************************
+* FLAGS USED IN EXECUTION MODE:    this needs to be checked * <<<<<<<<<<<<<<<<<<
+*  @FLAG   BIT   RESET               SET                    * <<<<<<<<<<<<<<<<<<
+*           0                                               * <<<<<<<<<<<<<<<<<<
+*           1    Warning PRINT       PRINT off              * <<<<<<<<<<<<<<<<<<
+*           2    Warning NEXT        STOP                   * <<<<<<<<<<<<<<<<<<
+*           3    Not in UDF          Executing a UDF        * <<<<<<<<<<<<<<<<<<
+*           4    TRACE mode          Normal mode            * <<<<<<<<<<<<<<<<<<
+*           5                                               * <<<<<<<<<<<<<<<<<<
+*           6    BREAK allowed       BREAK not allowed      * <<<<<<<<<<<<<<<<<<
+*           7    No LST/EDT protect  LIST/EDIT protected    * <<DELETE THIS<<<<<
+*************************************************************
+ 
+*************************************************************
+* ON WARNING {NEXT | STOP | PRINT}                          *
+* ON WARNING NEXT  - Causes warning messages to be ignored  *
+*                    and execution to continue as if a      *
+*                    warning never occurred                 *
+* ON WARNING STOP  - Causes a warning to be treated as an   *
+*                    error - i.e. the message is displayed  *
+*                    and execution is halted                *
+* ON WARNING PRINT - Causes the default warning handling to *
+*                    be in effect, i.e. any warning         *
+*                    messages are printed and execution     *
+*                    continues                              *
+*************************************************************
+ONWARN XML  PGMCHR            GET OPTION
+       CEQ  PRINTZ,@CHAT      If print
+       BR   GA1B7
+       AND  >F9,@FLAG         Turn on print and contiue
+       B    ONWRN5
+GA1B7  CEQ  STOPZ,@CHAT
+       BR   GA1C4
+       AND  >FD,@FLAG         Turn on print
+       OR   >04,@FLAG         Turn on stop
+       BR   ONWRN5
+GA1C4  CEQ  NEXTZ,@CHAT       * SYNTAX ERROR
+       BR   ERRSYN
+       OR   >02,@FLAG         Turn off print
+       AND  >FB,@FLAG         Turn off stop
+ONWRN5 XML  PGMCHR            Check for EOS
+ONWRN7 CALL CHKEND            Error if not EOS
+       BR   ERRSYN            If not EOS
+       DCLR @ERRCOD
+       XML  CONT              Continue
+*************************************************************
+* ON ERROR {line number | STOP}                             *
+* ON ERROR line number - causes the error routine to build  *
+*                        an error stack entry and pass      *
+*                        control to the line specified in   *
+*                        the most-recently executed         *
+*                        on-error-statement                 *
+* ON ERROR STOP - causes the default error handling         *
+*                 conditions to be in effect. i.e. any      *
+*                 errors that occur cause execution to halt *
+*                 an a message to be displayed              *
+*************************************************************
+ONERR  XML  PGMCHR            Get option
+       CEQ  LNZ,@CHAT         If line # then find the line
+       BR   GA20E
+       XML  PGMCHR            Get upper byte
+       ST   @CHAT,@FAC
+       XML  PGMCHR            Get lower byte
+       ST   @CHAT,@FAC1
+       DST  @ENLN,@FAC2
+       DSUB 3,@FAC2           Pointing to 1st line #
+* Consider both ERAM and RAM cases to get line # from the
+* line number table. Also reset the break bit.
+ONERR2 CALL GRSUB3            Get 2 bytes from either RAM/ERAM
+       BYTE FAC2            * FAC2 has the address
+       DCEQ @EEE1,@FAC        If found
+       BS   ONERR4
+       DCH  @STLN,@FAC2       Not found
+       BR   ERRLNF
+       DSUB 4,@FAC2           Goto next line
+       BR   ONERR2
+ONERR4 DINCT @FAC2
+       DST  @FAC2,V@ERRLN
+       BR   GA216
+GA20E  CEQ  STOPZ,@CHAT       * SYNTAX ERROR
+       BR   ERRSYN
+       DCLR V@ERRLN           Back to default error handling
+GA216  BR   ONWRN5            Finish up same as ON WARNING
+*************************************************************
+* ON BREAK {NEXT | STOP}                                    *
+* ON BREAK NEXT - Causes any breakpoints which have been    *
+*                 set on statements to be ignored when the  *
+*                 statement is encountered and also masks   *
+*                 the shift-C key so that it is ignored     *
+* ON BREAK STOP - Causes the default break handling to be   *
+*                 in force., i.e. execution is halted and   *
+*                 the BREAKPOINT message is displayed on    *
+*                 the screen                                *
+*************************************************************
+ONBRK  XML  PGMCHR            Get next char to find option
+       CEQ  STOPZ,@CHAT       If stop option specified
+       BR   GA225
+       AND  >BF,@FLAG         break allowed                   <<<<<<<<<<<<<<<<<<
+       B    GA22D             Don't change this to BR GA22D
+GA225  CEQ  NEXTZ,@CHAT       If next option number
+       BR   ERRSYN            specified then syntax error
+       OR   >40,@FLAG         If next option specified then
+*                              break NOT allowed
+GA22D  BR   ONWRN5            Finish up same as ON WARNING
+*************************************************************
+* GPLCAL - If a call is made to a subprogram that does not  *
+*  not exist either in the BASIC program itself or in the   *
+*  internal GPL subprogram list then one final attempt is   *
+*  made to find the subprogram at execution time by         *
+*  searching for the subprogram in the console or a         *
+*  peripheral. If not found there, then a                   *
+*  *SUBPROGRAM NOT FOUND error occurs                       *
+*                                                           *
+*  Input: the subprogram name is in the FAC and the length  *
+*         of the name is in FAC15                           *
+*************************************************************
+GPLCAL CZ   @RAMFLG           Can't try if CPU program        <<<<<<<<<<<<<<<<<<
+       BR   ERRSNF
+       DSRL 8,@FAC15          Make name length a double
+       DSUB @FAC15,@PGMPTR    Point back at name
+       DDEC @PGMPTR           Point at name length
+       DST  @PGMPTR,@FAC12    Set pointer to name
+       CALL CPL               Issue 'Call Program Link'
+       BYTE 10              * Search subprogram lists
+       BR   ONWRN7            If all ok, check-end and rtn
+       BR   ERRSNF            If not found, error
+ 
+ 
+ 
