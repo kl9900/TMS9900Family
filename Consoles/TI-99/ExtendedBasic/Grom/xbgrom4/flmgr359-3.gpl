@@ -25,22 +25,22 @@ INPUT  CALL INITKB            Assume keyboard INPUT
        BR   INPZ2
 G860B  CALL INSU1             Get info about file
 * INTERNAL files get special treatment
-       CLOG >08,V@FLG(@PABPTR) INTERNAL file
+       CLOG >08,V@FLG(@PABPTR)  INTERNAL file
        BS   G86AD
        CZ   V@OFS(@PABPTR)    Fresh start
        BR   G861E
 INTRZ0 CALL IOCLZ1            Get a new record through
 *                              the DSR
-G861E  ST   V@OFS(@PABPTR),@VARA+1 Regain possible offset
+G861E  ST   V@OFS(@PABPTR),@VARA+1  Regain possible offset
        CLR  @VARA             Make that a two byte constant
-       DST  V@BUF(@PABPTR),@TEMP5 Get first address
+       DST  V@BUF(@PABPTR),@TEMP5  Get first address
        DADD @VARA,@TEMP5      Compute actual address
 *                              within record
 INTRZ1 CALL BUG01             Get the symbol table entry
 * Above call fixes bug, of the given variable
        XML  VPUSH             And save it on the stack
        DCLR @BYTES            Assume no data available
-       CHE  V@CNT(@PABPTR),@VARA+1 Pick up data
+       CHE  V@CNT(@PABPTR),@VARA+1  Pick up data
        BS   G8643
        ST   V*TEMP5,@BYTES+1  Length byte first
        DINC @TEMP5            Update both actual address
@@ -85,21 +85,21 @@ G867E  DADD @BYTES,@TEMP5     Update address and
        BR   INTRZ1            Still something left
 INTRZ2 CHE  V@CNT(@PABPTR),@VARA+1
        BS   G86AB
-       ST   @VARA+1,V@OFS(@PABPTR) Save value of offset
+       ST   @VARA+1,V@OFS(@PABPTR)  Save value of offset
 G86AB  XML  CONT              And CONTINUE
 G86AD  CALL GETVAR            Collect variable list on stack
        DST  @STADDR,@CURLIN   Save it in temp
        DST  CRNBUF,@RAMPTR    Initialize crunch buffer pointer
        CLR  @RECLEN           Initialize field counter
-       ST   CZREAD,V@COD(@PABPTR) Select READ operation
+       ST   CZREAD,V@COD(@PABPTR)  Select READ operation
        CZ   V@OFS(@PABPTR)
        BR   INPZ31
        BR   INPZ3             Adjust for used record usage
-G86C6  ST   COMMAZ,V@-1(@RAMPTR) Fake legal separator
+G86C6  ST   COMMAZ,V@-1(@RAMPTR)  Fake legal separator
 INPZ3  CALL IOCLZ1            Get next input record
        CLR  V@OFS(@PABPTR)    Reset offset within record
        CALL RECENT
-       ST   V@CNT(@PABPTR),@VARA Get record length
+       ST   V@CNT(@PABPTR),@VARA  Get record length
 G86DB  CZ   @VARA
        BS   INPZ31
        ADD  OFFSET,V*VARW     Add video offset for normal
@@ -138,12 +138,12 @@ G872E  DINC @VARW
        DINC @VARW
        BR   INPZ32            Search for Nth data item
 G873A  DINC @VARW             Update pointer
-       CEQ  >8C,V@-1(@VARW) * ","+OFFSET = >8C
+       CEQ  >8C,V@-1(@VARW)  * ","+OFFSET = >8C
        BR   G873A
        DEC  @VAR6             Commas denote end of field
        BR   INPZ32            Continue until done
-       DSUB V@BUF(@PABPTR),@VARW Compute current offset
-       ST   @VARW+1,V@OFS(@PABPTR) Store for next round
+       DSUB V@BUF(@PABPTR),@VARW  Compute current offset
+       ST   @VARW+1,V@OFS(@PABPTR)  Store for next round
 G8752  ST   @VAR5,@VAR6       Copy # of variables for check
        DST  @CURLIN,@STADDR   Restore from temp
        BR   G8786
@@ -246,7 +246,7 @@ RECENT ST   V@OFS(@PABPTR),@VARW+1  Get record offset
        CLR  @VARW             Double byte value required
        DADD V@BUF(@PABPTR),@VARW   Got it
        RTN                    AND NOW, THE END IS NEAR...
-CHKRM  DCH  SCRNBS+29,@CCPADR Not enough room for "?"
+CHKRM  DCH  SCRNBS+29,@CCPADR  Not enough room for "?"
        BR   G8840
 SCRZ   XML  SCROLL            Scroll one line for "?"
        DST  SCRNBS+2,@CCPADR   and update CCPADR accordingly
@@ -297,8 +297,8 @@ LINP10 DST  @VSPTR,@VAR4      Save original V-pointer
        BR   G887B
        CALL IOCLZ1            Read the record
        BR   G8893
-G887B  ST   V@CNT(@PABPTR),@BYTES Get length of record
-       DST  V@BUF(@PABPTR),@TEMP5 Get address of buffer
+G887B  ST   V@CNT(@PABPTR),@BYTES  Get length of record
+       DST  V@BUF(@PABPTR),@TEMP5  Get address of buffer
 G8885  CZ   @BYTES            While characters in buffer
        BS   G8893
        SUB  OFFSET,V*TEMP5    Remove INPUT's offset

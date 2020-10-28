@@ -34,9 +34,9 @@ SAVE   CLOG >80,@FLAG         * PROTECTION VIOLATION         <<<<DELETE THIS<<<<
        DCEQ >C805,V*PGMPTR    Unquoted string with length 5 : <<<<<<<<<<<<<<<<<
 *                              has to be MERGE at this time
        BR   G8DF4
-       DCEQ >4D45,V@2(@PGMPTR) "ME" of MErge                 <<<<<<<<<<<<<<<<<<<
+       DCEQ >4D45,V@2(@PGMPTR)  "ME" of MErge                 <<<<<<<<<<<<<<<<<<<
        BR   ERRSYN             If not : SYNTAX ERROR
-       DCEQ >5247,V@4(@PGMPTR) "RG" of meRGe                 <<<<<<<<<<<<<<<<<<<
+       DCEQ >5247,V@4(@PGMPTR)  "RG" of meRGe                 <<<<<<<<<<<<<<<<<<<
        BR   ERRSYN             If not : SYNTAX ERROR
        CEQ  >45,V@6(@PGMPTR)   "E" of mergE                  <<<<<<<<<<<<<<<<<<<
        BR   ERRSYN             If not : SYNTAX ERROR
@@ -47,13 +47,13 @@ SAVE   CLOG >80,@FLAG         * PROTECTION VIOLATION         <<<<DELETE THIS<<<<
 G8DF4  DCEQ >C809,V*PGMPTR    Unquoted string with length 9 :  <<<DELETE THIS<<<
 *                              has to be PROTECTED
        BR   ERRSYN
-       DCEQ >5052,V@2(@PGMPTR) "PR" of PRotected               <<<DELETE THIS<<<
+       DCEQ >5052,V@2(@PGMPTR)  "PR" of PRotected               <<<DELETE THIS<<<
        BR   ERRSYN             If not : SYNTAX ERROR
-       DCEQ >4F54,V@4(@PGMPTR) "OT" of prOTected               <<<DELETE THIS<<<
+       DCEQ >4F54,V@4(@PGMPTR)  "OT" of prOTected               <<<DELETE THIS<<<
        BR   ERRSYN             If not : SYNTAX ERROR
-       DCEQ >4543,V@6(@PGMPTR) "EC" of protECted               <<<DELETE THIS<<<
+       DCEQ >4543,V@6(@PGMPTR)  "EC" of protECted               <<<DELETE THIS<<<
        BR   ERRSYN             If not : SYNTAX ERROR
-       DCEQ >5445,V@8(@PGMPTR) "TE",of protecTEd               <<<DELETE THIS<<<
+       DCEQ >5445,V@8(@PGMPTR)  "TE",of protecTEd               <<<DELETE THIS<<<
        BR   ERRSYN             If not : SYNTAX ERROR
        CEQ  >44,V@10(@PGMPTR)  "D" of protecteD                <<<DELETE THIS<<<
        BR   ERRSYN             If not : SYNTAX ERROR
@@ -81,7 +81,7 @@ G8E42  CALL UBSUB             Clear the breakpoint in ERAM    <<<<<<<<<<<<<<<<<<
 *  text and line number table from ERAM to VDP
        GT                  Not enough memory in VDP for sure
        BR   GSAVE
-       DST  VRAMVS+64+256,@VAR5 * 64 bytes ar for safety buffer
+       DST  VRAMVS+64+256,@VAR5  * 64 bytes ar for safety buffer
 * DSR routine give file error when loading a program which has
 *  VDP maximum size and was saved from VDP to be a program file
 *  on disk when ERAM not exist. In order to fix this problem,
@@ -128,7 +128,7 @@ LRTOPL CALL KILSYM            Release string space/symbol table
 * Data type             : internal
 * Record type           : variable length records
 * Logical record length : 254 maximum
-GSAVE  MOVE 9,G@PAB3,V@4(@PABPTR) Build the PAB
+GSAVE  MOVE 9,G@PAB3,V@4(@PABPTR)  Build the PAB
        DECT V@FLG(@PABPTR)    Put in the correct I/O mode :>1A
 * Compute the data buffer address
        DST  @>8370,@FAC
@@ -153,7 +153,7 @@ GSAVE  MOVE 9,G@PAB3,V@4(@PABPTR) Build the PAB
 *                              the LIST/EDIT protection
 G8EFB  DINCT @FAC
        DST  @RAMTOP,V*FAC     Save the top of memory info
-       ST   10,V@CNT(@PABPTR) Set the caracter count in PAB
+       ST   10,V@CNT(@PABPTR)  Set the caracter count in PAB
        CALL IOCALL            Call device service routine
        BYTE CZWRIT          * With I/O opcode : write, to save
 *                       the control info for the first record
@@ -167,7 +167,7 @@ G8EFB  DINCT @FAC
        DST  @RAMTOP,@CCC1
        DSUB @STLN,@CCC1
        DINC @CCC1
-       ST   254,V@CNT(@PABPTR) Set the character count of PAB
+       ST   254,V@CNT(@PABPTR)  Set the character count of PAB
 G8F1C  DST  254,@FFF1         @FFF1 byte count
        XML  GVWITE            Move data from ERAM to VDP
        CALL IOCALL            Call device service routine
@@ -180,7 +180,7 @@ G8F1C  DST  254,@FFF1         @FFF1 byte count
 * Move the last @CCC1 bytes from ERAM to VDP
        DST  @CCC1,@FFF1       @FFF1 : Byte count
        XML  GVWITE            Write data from ERAM to VDP
-       ST   @CCC1+1,V@CNT(@PABPTR) Update the character count
+       ST   @CCC1+1,V@CNT(@PABPTR)  Update the character count
 *                                   in PAB
        CALL IOCALL            Call device service routine
        BYTE CZWRIT
@@ -220,7 +220,7 @@ GVMOV  DST  @STLN,@BBB1       Save STLN, ENLN for later use
 *  Data buffer address   : Crunch buffer address
 *  Logical record length : 163 (length of curnch buffer + 2
 *                                bytes for line #) maximum
-SAVMG  MOVE 9,G@PAB1,V@4(@PABPTR) Build PAB
+SAVMG  MOVE 9,G@PAB1,V@4(@PABPTR)  Build PAB
        CALL IOCLZ1         Call the DSR routine to open file
        DST  @ENLN,@FAC6    Start from the first line #
        DSUB 3,@FAC6        @FAC6 now points to the 1st line #
@@ -263,7 +263,7 @@ G8FB6  DST  V*FAC6,V@CRNBUF   PUT THE LINE # IN
        MOVE @VAR0,V@1(@FAC2),V@CRNBUF+2
 G8FCD  AND  >7F,V@CRNBUF      Reset possible breakpoint
        DINCT @VAR0    * Total length=text length+line # length
-       ST   @VAR0+1,V@CNT(@PABPTR) Store in the cahracter count
+       ST   @VAR0+1,V@CNT(@PABPTR)  Store in the cahracter count
        CALL IOCALL            Call the device service routine
        BYTE CZWRIT          * Write
        DSUB 4,@FAC6           Go to the next line #

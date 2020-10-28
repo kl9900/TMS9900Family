@@ -36,7 +36,7 @@ PRINT  CALL INITKB            Initialize keyboard I/O
 G8288  CEQ  CZREAD,V@COD(@PABPTR)
        BR   G8293
        CLR  V@OFS(@PABPTR)    Unpend pending INPUTs
-G8293  ST   CZWRIT,V@COD(@PABPTR) uncomplete PRINTs
+G8293  ST   CZWRIT,V@COD(@PABPTR)  uncomplete PRINTs
        CALL PRINIT            Initialize some variables
 * Next character has to be either EOL, COMMA, or COLON
        CALL CHKEND
@@ -174,7 +174,7 @@ PRSMZ1 CZ   @DSRFLG           For screen output continue
        CLOG >08,@PABPTR       Check SIZE clause
        BS   PREXIT
        CALL OUTREC            Output current record (blank rest)
-       ST   @CCPADR+1,@CCPPTR Compute correct value for CCPPTR
+       ST   @CCPADR+1,@CCPPTR  Compute correct value for CCPPTR
        SUB  >E1,@CCPPTR       Subtract current screen base
        BR   PREXIT             and exit form this command
 * End of line exit routine for PRINT statement
@@ -188,7 +188,7 @@ G83A1  CALL OUTREC            Output pending record
 PREXIT CZ   @DSRFLG           Regular file/device I/O
        BR   G83B1
        DEC  @CCPPTR           Back to actual offset
-       ST   @CCPPTR,V@OFS(@PABPTR) Save for next statement
+       ST   @CCPPTR,V@OFS(@PABPTR)  Save for next statement
        XML  CONT              Continue with next statement
 *                              End external I/O handling
 * Reset of code is for internal I/O handling (VDP)
@@ -204,7 +204,7 @@ G83C3  XML  CONT              Continue in PARSE routine
 *          is NOT INTERNAL
 TSTINT CZ   @DSRFLG           Couldn't possibly be INTERNAL
        BR   RTC
-       CLOG >08,V@FLG(@PABPTR) Set COND according to bit 3
+       CLOG >08,V@FLG(@PABPTR)  Set COND according to bit 3
        RTNC                   Return without changing COND
 ********* PRINT / DISPLAY USING SECTION *********************
 * Arrive here after the keyword "USING" has been rejected.
@@ -283,13 +283,13 @@ G8463  XML  VPUSH             Current string might be temporary
        DST  @SREF,@CURLIN     Create a temporary string
        DADD @FAC6,@SREF       Compute last position in string
        CLR  V*SREF            Set end of string indicator
-USNGZ3 DST  V@4(@VSPTR),@FAC4 Update FAC4 area in case garbage
-       MOVE @FAC6,V*FAC4,V*CURLIN Copy format
+USNGZ3 DST  V@4(@VSPTR),@FAC4  Update FAC4 area in case garbage
+       MOVE @FAC6,V*FAC4,V*CURLIN  Copy format
        DST  @CURLIN,@FAC4     Complete preps for VPUSH
        DST  >001C,@FAC        SREF = >001C
        DINC @FAC6             Include 0 in string length
        XML  VPUSH             Make the string temporary
-       DST  V@4(@VSPTR),@CURLIN Update current line pointer
+       DST  V@4(@VSPTR),@CURLIN  Update current line pointer
 USNGZ4 CEQ  >23,V*CURLIN      Try to locate the next format
        BS   G84C3
        CZ   V*CURLIN          Not end of string yet
@@ -311,7 +311,7 @@ G84A2  CEQ  COMMAZ,@CHAT      Stop on last variable
        XML  VPUSH             Without actually removing it
        DSUB @FAC6,@CURLIN     Reconstruct start address
        BR   USNGZ3            Continue for the next variable
-G84C3  DCEQ V@4(@VSPTR),@CURLIN Avoid "#" as count
+G84C3  DCEQ V@4(@VSPTR),@CURLIN  Avoid "#" as count
        BS   USNZ42
        DDEC @CURLIN           Backup to the sign
        CEQ  >2E,V*CURLIN      Used ".#####"
@@ -328,11 +328,11 @@ G84DB  CEQ  >2D,V*CURLIN      Check for minus
 USNZ42 CEQ  COMMAZ,@CHAT      Exit if no more pt item
        BR   USNGZ9
        XML  PGMCHR            Get next expression
-       DSUB V@4(@VSPTR),@CURLIN Make CURLIN offset for
+       DSUB V@4(@VSPTR),@CURLIN  Make CURLIN offset for
 *                                garbage collection
        XML  PARSE             Parse up to ";" or ","
        BYTE SEMICZ
-       DADD V@4(@VSPTR),@CURLIN Reconstruct new CLN after
+       DADD V@4(@VSPTR),@CURLIN  Reconstruct new CLN after
 *                                garbage collection
        DCLR @FAC8             Start with clean sheet for counts
        DCLR @FAC11
@@ -395,7 +395,7 @@ G8581  OR   >01,@FAC11        Set fixed format output it for CNS
        ST   @FAC11,@FAC13     FAC13 now point to beginning of
 *                              the string
        CLR  @FAC11            Clear high byte
-       MOVE @FAC11,*FAC13,V*CURLIN Copy the result string from
+       MOVE @FAC11,*FAC13,V*CURLIN  Copy the result string from
 *                                   temporary
        DST  @VAR4,@CURLIN     Move pointer behind print field
        BR   USNGZ4            Continue after printing
@@ -411,7 +411,7 @@ USNZ67 DCEQ @VAR4,@CURLIN     Which is stored in VAR4
        BR   USNGZ4
 G85B1  DCZ  @FAC6
        BS   USNZ68
-       MOVE @FAC6,V*FAC4,V*CURLIN Copy result string
+       MOVE @FAC6,V*FAC4,V*CURLIN  Copy result string
        DADD @FAC6,@CURLIN     And update address in string
 USNZ68 ST   SPACE,@VAR0       Fill remainder with spaces
        BR   USNZ67

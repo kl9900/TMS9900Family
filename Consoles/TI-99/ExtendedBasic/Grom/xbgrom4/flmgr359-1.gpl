@@ -95,7 +95,7 @@ OPTZ0  CLOG >04,@OPTFLG
 *  Select relative record file in PAB and fall through in
 *  SEQUENTIAL code for multiple usage check. Also handle
 *  initial file-size there.
-OPTZ02 OR   >01,V@FLG(@PABPTR) Indicate RELATIVE RECORD
+OPTZ02 OR   >01,V@FLG(@PABPTR)  Indicate RELATIVE RECORD
 * CASE 4 - "SEQUENTIAL" *************************************
 *  Checks for multiple usage. Remainder of syntax demads that
 *  we have something like:
@@ -113,7 +113,7 @@ OPTZ1  CLOG >08,@OPTFLG
        CALL CHKEND            Check for end of statement
        BS   CHECK
        CALL CHKPAR            Preform combined checking & parsing
-       DST  @FAC,V@RNM(@PABPTR) Non-zero result
+       DST  @FAC,V@RNM(@PABPTR)  Non-zero result
        BR   OPTIZ0            Scan other options
 * Parse and check a numeric argument in here....
 CHKPAR XML  PARSE             If not ... parse up to comma
@@ -154,7 +154,7 @@ OPTZ5  XML  PGMCHR            Get next character
 * bytes in length)
        CZ   @FAC
        BR   OPERR
-       ST   @FAC1,V@LEN(@PABPTR) Select non-zero rec-size
+       ST   @FAC1,V@LEN(@PABPTR)  Select non-zero rec-size
 OPTZ55 CLOG >10,@OPTFLG
        BR   OPERR
        OR   >10,@OPTFLG       Prevent to much usage of modes
@@ -172,7 +172,7 @@ OPTZ6  CLOG >02,@OPTFLG
 * CASE 10 "INPUT" *******************************************
 *  Same as any other I/O type definition. Mode code "10" ....
 *  Continue in OPTZ3
-OPTZ7  OR   >04,V@FLG(@PABPTR) Mode code = 10
+OPTZ7  OR   >04,V@FLG(@PABPTR)  Mode code = 10
        BR   OPTZ3
 * CLRFRE deallocates previously alocated (parts of) PAB's and
 * return with an error message
@@ -192,16 +192,16 @@ CHECK  CALL CHKEND            Check EOS
 * default specification depends on the file type.
 * Change current default (=VARIABLE) to FIXED for
 * RELATIVE files.
-       CLOG >01,V@FLG(@PABPTR) RELATIVE RECORD
+       CLOG >01,V@FLG(@PABPTR)  RELATIVE RECORD
        BS   G8127
-       CLOG >10,V@FLG(@PABPTR) VARIABLE RECORD
+       CLOG >10,V@FLG(@PABPTR)  VARIABLE RECORD
        BS   G8125
 FILZZ  CALL CLRFRE            Undo the PAB allocation
        BR   ERRFE             FILE ERROR
 G8125  BR   G8131             Sequential file, check rec. mode
 G8127  CLOG >10,@OPTFLG       No definition yet
        BR   G8131
-       OR   >10,V@FLG(@PABPTR) Force VARIABLE mode
+       OR   >10,V@FLG(@PABPTR)  Force VARIABLE mode
 G8131  CALL CDSR              Call the DSR, return with error
        BR   ERRZ2B             indication in COND...
        DCLR V@RNM(@PABPTR)    Make sure we start with record
@@ -209,7 +209,7 @@ G8131  CALL CDSR              Call the DSR, return with error
 * any type might be defined by the DSR
        CZ   V@LEN(@PABPTR)
        BS   FILZZ
-       ST   V@LEN(@PABPTR),@MNUM+1 Get record length
+       ST   V@LEN(@PABPTR),@MNUM+1  Get record length
        CLR  @MNUM             Create two byte result and
        CLR  V@OFS(@PABPTR)     allocate - remove offset for
 *                              later use
@@ -225,11 +225,11 @@ G815A  DCZ  V*STADDR
        DST  V*STADDR,@STADDR  Keep on deferring
        BR   G815A
 G8165  DST  @PABPTR,V*STADDR  Update last chain link
-G8169  DST  @PABPTR,V@BUF(@PABPTR) Set empty buffer first
+G8169  DST  @PABPTR,V@BUF(@PABPTR)  Set empty buffer first
        XML  MEMCHK            Check memory overflow & string space
        BS   ERRMEM            * MEMORY FULL
        DSUB @MNUM,@FREPTR     Compute buffer entry address
-       DSUB @MNUM,V@BUF(@PABPTR) Correct buffer address in PAB
+       DSUB @MNUM,V@BUF(@PABPTR)  Correct buffer address in PAB
        XML  CONT              Return to the parser
 *************************************************************
 *                    DELETE ROUTINE                         *
@@ -261,25 +261,25 @@ CLOSE  CALL CHKFN             Check for "no #" / "#0" cases
        CALL CHKCON            Check file number etc...
        BR   ERRFE             *** FILE NUMBER NOT IN SYSTEM ***
        CALL OUTEOF            Output pending records
-       ST   CZCLOS,V@COD(@PABPTR) Default to CLOSE I/O code
+       ST   CZCLOS,V@COD(@PABPTR)  Default to CLOSE I/O code
        CEQ  COLONZ,@CHAT      Check for ":DELETE" spec.
        BR   G81B8
        XML  PGMCHR            Request next input token
        XML  SPEED             Must be at a
        BYTE SYNCHK          *  "DELETE" else
        BYTE DELETZ          *   its an error
-       ST   CZDELE,V@COD(@PABPTR) Change CLOSE to DELETE
+       ST   CZDELE,V@COD(@PABPTR)  Change CLOSE to DELETE
 G81B8  CALL CHKEND            EOS?
        BR   ERRSYN            NO:SYNTAX ERROR
        CALL CDSR              Call DSR with whatever we have
        BR   CLOSZ1            Reset means error....
        CALL DELPAB            Delete PAB and data-buffer
        XML  CONT              Return to parser routine
-CLOSZ1 DST  V@4(@PABPTR),@ARG Save error code for message
+CLOSZ1 DST  V@4(@PABPTR),@ARG  Save error code for message
        CALL DELPAB            Now delete the PAB
        DST  @FREPTR,@PABPTR   Store error-code in free memory
        DSUB 6,@PABPTR         Create standard size PAB
-       DST  @ARG,V@4(@PABPTR) Copy error-code
+       DST  @ARG,V@4(@PABPTR)  Copy error-code
        BR   ERRIO             Exit to error-routine
 *************************************************************
 *                   CLOSE ALL ROUTINE                       *
@@ -293,7 +293,7 @@ G81DD  DST  V*PABPTR,@PABPTR
 CLSAZ0 DCZ  V*PABPTR          Find last PAB in chain
        BR   G81DD
        CALL OUTEOF            Take care of pending records
-CLSLBL ST   CZCLOS,V@COD(@PABPTR) Select CLOSE code
+CLSLBL ST   CZCLOS,V@COD(@PABPTR)  Select CLOSE code
        CALL CDSR              CLOSE to DSR routine
        CALL DELPAB            Delete PAB - ignore CLOSE errors
 CLSALL DST  @IOSTRT,@PABPTR   Start at beginning of chain

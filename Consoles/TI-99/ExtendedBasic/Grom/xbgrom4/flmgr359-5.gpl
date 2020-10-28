@@ -27,13 +27,13 @@ OLD1   CALL GPNAME            Get program name & reinitialize^s <<<<<<<<<<<<<<<<
        DST  @>8370,V@RNM(@PABPTR)  Compute # of availiable bytes
        DSUB @STADDR,V@RNM(@PABPTR)
        DINC V@RNM(@PABPTR)    Include current address
-       DST  @STADDR,V@BUF(@PABPTR) for copy start
+       DST  @STADDR,V@BUF(@PABPTR)  for copy start
        ST   CZLOAD,V@COD(@PABPTR)   Select LOAD I/O code
        CALL CDSR              Call device service routine
        BR   OLDZ3             Not a program file, may be a  <<<<<<<<<<<<<<<<<<<<
 *                              sequential file
 * STADDR still points to the info bytes
-       DST  V@2(@STADDR),@MNUM First test checksum
+       DST  V@2(@STADDR),@MNUM  First test checksum
        DXOR V@4(@STADDR),@MNUM  which is a simple XOR
        DCEQ @MNUM,V*STADDR     Try PROTECTION option        <<<<<<<<<<<<<<<<<<<<
        BS   G8C15                                           <<<<<<<<<<<<<<<<<<<<
@@ -45,7 +45,7 @@ OLD1   CALL GPNAME            Get program name & reinitialize^s <<<<<<<<<<<<<<<<
 G8C15  CLR  @FLAG             Otherwise clear protection    <<<<<<<<<<<<<<<<<<<<
 G8C17  DST  V@2(@STADDR),@ENLN  Copy new ENLN,
        DST  V@4(@STADDR),@STLN   STLN and
-       DST  V@6(@STADDR),V@OLDTOP top of memory info
+       DST  V@6(@STADDR),V@OLDTOP  top of memory info
        DADD 8,@STADDR         Point to program data
        DST  @>8370,V@NEWTOP   Set up the new top
        CALL RELOCA            Relocate according to @>8370  <<<<<<<<<<<<<<<<<<<<
@@ -82,7 +82,7 @@ OLDZ3  CZ   @RAMTOP                                          <<<<<<<<<<<<<<<<<<<
 * Date type : internal
 * Record type : Variable length records
 * Logical record length : 254 maximum
-       MOVE 9,G@PAB3,V@4(@PABPTR) Build the PAB          <<<<<<<<<<<<<<<<<<<
+       MOVE 9,G@PAB3,V@4(@PABPTR)  Build the PAB          <<<<<<<<<<<<<<<<<<<
        DST  @>8370,@FAC       Compute the data buffer address<<<<<<<<<<<<<<<<<<<
        DSUB 253,@FAC                                         <<<<<<<<<<<<<<<<<<<
        DST  @FAC,@AAA         Save it for later use in VGWITE<<<<<<<<<<<<<<<<<<<
@@ -94,7 +94,7 @@ OLDZ3  CZ   @RAMTOP                                          <<<<<<<<<<<<<<<<<<<
        CALL IOCALL            Read in the first record       <<<<<<<<<<<<<<<<<<<
        BYTE CZREAD          *                                <<<<<<<<<<<<<<<<<<<
 * Check the control information
-       CEQ  10,V@CNT(@PABPTR) * 10 bytes contr info          <<<<<<<<<<<<<<<<<<<
+       CEQ  10,V@CNT(@PABPTR)  * 10 bytes contr info          <<<<<<<<<<<<<<<<<<<
        BR   OLDER                                            <<<<<<<<<<<<<<<<<<<
 * >ABCD is the flag set at SAVE time indicating a program file
        DCEQ >ABCD,V*FAC                                      <<<<<<<<<<<<<<<<<<<

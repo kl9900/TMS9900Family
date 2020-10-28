@@ -21,8 +21,8 @@ G9242  CALL CLSALL            First close all open files
        MOVE PABLEN-5,V*PABPTR,V@1(@PABPTR)
        XML  PGMCHR            Get length of file-specifications
        DSUB 4,@PABPTR         Make it a regular PAB
-       ST   @CHAT,V@NLEN(@PABPTR) Copy name length to PAB
-       DST  V@NLEN-1(@PABPTR),@STADDR Avoid problems(bugs!)
+       ST   @CHAT,V@NLEN(@PABPTR)  Copy name length to PAB
+       DST  V@NLEN-1(@PABPTR),@STADDR  Avoid problems(bugs!)
        CZ   @RAMFLG           If ERAM not exist or imperative
        BR   G9275
        MOVE @STADDR,V*PGMPTR,V@NLEN+1(@PABPTR)
@@ -178,7 +178,7 @@ G938F  RTNC                   Exit with no COND change
 * (UPDATE, APPEND or OUTPUT).                               *
 *************************************************************
 OUTEOF CLR  @DSRFLG
-       CEQ  CZWRIT,V@COD(@PABPTR) Non-input mode
+       CEQ  CZWRIT,V@COD(@PABPTR)  Non-input mode
        BR   G93A5
        CZ   V@OFS(@PABPTR)    Non-empty record
        BS   G93A5
@@ -190,11 +190,11 @@ G93A5  RTN                    Return to whoever called
 * assumption that the PAB exists                            *
 *************************************************************
 * First compute start and end address for block move
-DELPAB DST  V@BUF(@PABPTR),@STADDR Get lowest used address
+DELPAB DST  V@BUF(@PABPTR),@STADDR  Get lowest used address
        DDEC @STADDR           Make that an addr following PAB
        CLR  @CCPADR           Get highest addr in CCPADR (2)
-       ST   V@NLEN(@PABPTR),@CCPADR+1 complete the two bytes
-       ADD  PABLEN-1,@CCPADR+1 Add PAB length-1
+       ST   V@NLEN(@PABPTR),@CCPADR+1  complete the two bytes
+       ADD  PABLEN-1,@CCPADR+1  Add PAB length-1
        DADD @PABPTR,@CCPADR   Compute actual addr within RAM
        DCEQ @PABPTR,@IOSTRT   Watch out for first PAB
        BS   G93E6
@@ -223,7 +223,7 @@ G93F7  DST  @STADDR,@MNUM     Get # of bytes to move
        DST  @CCPADR,@CCPPTR   Save destination address
 G9400  DCZ  @MNUM
        BS   G9411
-       ST   V*STADDR,V*CCPADR Move byte by byte
+       ST   V*STADDR,V*CCPADR  Move byte by byte
        DDEC @STADDR           Update source
        DDEC @CCPADR            and destination pointers
        DDEC @MNUM             Also update counter value
@@ -234,10 +234,10 @@ G9411  DSUB @STADDR,@CCPADR   Compute # of bytes of old PAB
 G9418  DCZ  V*PABPTR          Ad infinitum (or fundum)
        BS   G942C
        DADD @CCPADR,V*PABPTR  Adjust link to next PAB
-       DADD @CCPADR,V@BUF(@PABPTR) Update the buffer link
+       DADD @CCPADR,V@BUF(@PABPTR)  Update the buffer link
        DST  V*PABPTR,@PABPTR  Get next link in chain
        BR   G9418
-G942C  DADD @CCPADR,V@BUF(@PABPTR) Update buffer link
+G942C  DADD @CCPADR,V@BUF(@PABPTR)  Update buffer link
 * Adjust symbol table links
 G9431  DCZ  @SYMTAB
        BS   G94B4
@@ -247,9 +247,9 @@ G9431  DCZ  @SYMTAB
        DST  @SYMTAB,@PABPTR   Get pointer for update
 DELPZ1 CZ   @RAMTOP
        BR   DELPZ2
-       DCGE @STLN,V@4(@PABPTR) If imperative
+       DCGE @STLN,V@4(@PABPTR)  If imperative
        BS   G9451
-DELPZ2 DADD @CCPADR,V@4(@PABPTR) Adjust name pointer
+DELPZ2 DADD @CCPADR,V@4(@PABPTR)  Adjust name pointer
 G9451  CGE  0,V*PABPTR        If string-fix breakpoints
        BS   G949B
        ST   >07,@FAC          Mask to get # of dims         <<<<<<<<<<<<<<<<<<<<
@@ -282,8 +282,8 @@ G949B  DCZ  V@2(@PABPTR)
        BS   G94B4
        DCGE @CCPPTR,V@2(@PABPTR)
        BS   G94B4
-       DADD @CCPADR,V@2(@PABPTR) Adjust next value link
-       DST  V@2(@PABPTR),@PABPTR Next entry
+       DADD @CCPADR,V@2(@PABPTR)  Adjust next value link
+       DST  V@2(@PABPTR),@PABPTR  Next entry
        BR   DELPZ1
 G94B4  DADD @CCPADR,@FREPTR   Update free word pointer
        RTN
@@ -317,7 +317,7 @@ PARREC CEQ  COMMAZ,@CHAT      Only check if we have a ","
        CALL CHKCNV            Check numeric and convert to
        CGE  0,@FAC             2 byte integer, Bad Value
        BR   ERRBV
-       DST  @FAC,V@RNM(@PABPTR) Store actual record number
+       DST  @FAC,V@RNM(@PABPTR)  Store actual record number
 G94EE  RTN
  
  

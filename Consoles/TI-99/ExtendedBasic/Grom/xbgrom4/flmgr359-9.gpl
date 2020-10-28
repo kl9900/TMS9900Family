@@ -140,13 +140,13 @@ G95FC  SUB  @CCPPTR,@RECLEN   Limit field size to available
        INC  @RECLEN            space... including current postion
        CH   @PABPTR+1,@RECLEN
        BR   INITZ1
-       ST   @PABPTR+1,@RECLEN Only accept if available
+       ST   @PABPTR+1,@RECLEN  Only accept if available
        BR   INITZ1            Reinitialize CCPPTR
 * Copy (converted) numerical datum in string
 RSTRING ST  @FAC12,@BYTES+1   Get actual string length
        CLR  @BYTES            Create double byte value
        CALL CTSTR             Create a temporary string
-       MOVE @BYTES,*FAC11,V*SREF Copy value string
+       MOVE @BYTES,*FAC11,V*SREF  Copy value string
        RTN
 * COMMOD - Compute FAC module FAC2
 COMMOD DIV  @FAC2,@FAC        Compute remainder
@@ -197,10 +197,10 @@ PARFN  XML  PARSE             Parse up to next comma    <<<<<<<<<<<<<<<<<<<<<<<<
        DINC @PABPTR           Correct for byte within PAB
        CLR  V*PABPTR          Clear PAB plus control info
        MOVE PABLEN-1,V*PABPTR,V@1(@PABPTR)  Ripple byte
-       ST   @MNUM+1,V@OFS(@PABPTR) Save length of PAB
+       ST   @MNUM+1,V@OFS(@PABPTR)  Save length of PAB
        ST   @FAC7,@MNUM       Compute # of bytes in name
-       ST   @FAC7,V@NLEN(@PABPTR) Store name length
-       ST   @FNUM,V@FIL(@PABPTR) Copy file number in PAB
+       ST   @FAC7,V@NLEN(@PABPTR)  Store name length
+       ST   @FNUM,V@FIL(@PABPTR)  Copy file number in PAB
        DST  @PABPTR,@CCPADR   Get start addr for string destination
        DADD NLEN+1,@CCPADR    Add offset to actual start addr
 * TRICKY - OPTFLG also results offset added in CSTRIN
@@ -236,7 +236,7 @@ SCRO   XML  SCROLL            Scroll the screen one line
        ST   1,@CCPPTR         Reinitialize CCPPTR
        BR   INTKB0             and reinitialize
 * This is also entry for last record output
-G96D3  CLOG >10,V@FLG(@PABPTR) FIXED records
+G96D3  CLOG >10,V@FLG(@PABPTR)  FIXED records
        BR   G96E2
        ST   @RECLEN,@MNUM+1   Ready for space filling
        INC  @MNUM+1           Move to first position outside
@@ -244,7 +244,7 @@ G96D3  CLOG >10,V@FLG(@PABPTR) FIXED records
        XML  IO                And do it up to end of record
        BYTE FILSPC
 G96E2  DEC  @CCPPTR           Update last character position
-       ST   @CCPPTR,V@CNT(@PABPTR) Store # of characters
+       ST   @CCPPTR,V@CNT(@PABPTR)  Store # of characters
        CLR  V@OFS(@PABPTR)    Undo pending record offsets
        CALL IOCALL            Call DSR
        BYTE CZWRIT          *  for WRITE mode
@@ -254,11 +254,11 @@ G96E2  DEC  @CCPPTR           Update last character position
 * DSRFLG, for a given PABPTR.
 PRINIT CLR  @DSRFLG           Indicate external I/O in DSRFLG
        ST   V@LEN(@PABPTR),@RECLEN  Pick up record length
-       ST   V@OFS(@PABPTR),@CCPADR+1 Get offset in record
+       ST   V@OFS(@PABPTR),@CCPADR+1  Get offset in record
 PRZZ0  ST   @CCPADR+1,@CCPPTR  Compute columnar position
        INC  @CCPPTR           And convert from offset
        CLR  @CCPADR           Clear upper byte
-       DADD V@BUF(@PABPTR),@CCPADR Compute actual address
+       DADD V@BUF(@PABPTR),@CCPADR  Compute actual address
        RTN
 *************************************************************
 * OSTRNG - Copy the value of the string expression to the   *
@@ -300,12 +300,12 @@ INITKB CLR  @PABPTR           Don't use any DISPLAY options
        ST   @XPT,@CCPPTR      Initialize CCPPTR
        DECT @CCPPTR           Correct for incorrect XPT offset
 G9751  ST   VWIDTH,@RECLEN    Get video screen width
-INTKB0 ST   @CCPPTR,@CCPADR+1 Initialize screen address
+INTKB0 ST   @CCPPTR,@CCPADR+1  Initialize screen address
        CLR  @CCPADR           Clear upper byte CCPADR
        DADD SCRNBS+1,@CCPADR  Add start-addr plus comenstator
        RTN
 IOCALL FETCH @FAC12           I/O code to FAC12 (BUG!!!)
-       ST   @FAC12,V@COD(@PABPTR) Pick up the I/O code
+       ST   @FAC12,V@COD(@PABPTR)  Pick up the I/O code
 IOCLZ1 CALL CDSR              Call the DSR routine
        BR   ERRZ2             Give I/O error on error
        RTN                    Or else return
@@ -314,7 +314,7 @@ CDSR   ST   OFFSET,V@SCR(@PABPTR)   Always set screen offset
        MOVE 30,@FAC,V@>03C0   Save FAC area
        DST  @PABPTR,@FAC12    Get PAB pointer in FAC
        DADD NLEN,@FAC12       Get PAB pointer in FAC
-       AND  >1F,V@FLG(@PABPTR) Clear error bits for ON ERROR
+       AND  >1F,V@FLG(@PABPTR)  Clear error bits for ON ERROR
 *                       time, I/O process can still be
 *                        continued
        CALL CALDSR            Call actual DSR link routine
@@ -322,7 +322,7 @@ CDSR   ST   OFFSET,V@SCR(@PABPTR)   Always set screen offset
        MOVE 30,V@>03C0,@FAC
 * MOVE does not affect status
        BS   CDSRZ0            ERROR = ERROR = ERROR
-       CLOG >E0,V@FLG(@PABPTR) Set COND if no error
+       CLOG >E0,V@FLG(@PABPTR)  Set COND if no error
 CDSRZ0 RTNC
 * ERROR MESSAGES
 ERRZ2B CALL CLRFRE            Undo allocation of PAB        <<<<<<<<<<<<<<<<<<<<
@@ -384,6 +384,7 @@ BUG01  CHE  >80,@CHAT         Make sure of variable name
        XML  SYM               Get the information of the
        XML  SMB                variable.
        RTN
+       BYTE 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
 ********************************************************************************
  
  

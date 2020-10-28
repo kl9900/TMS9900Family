@@ -34,7 +34,7 @@ MERGE  CALL GPNAME            Close all file, set up PAB     <<<<<<<<<<<<<<<<<<<
        BS   ERRZ2B
 G902A  DCLR @>83D6            Read in one line and edit it to  <<<<<<<<<<<<<<<<<
 *                              program
-       ST   V@CNT(@PABPTR),@CHAT Length of this record
+       ST   V@CNT(@PABPTR),@CHAT  Length of this record
        DECT @CHAT             Text length = total length-2
 *                                          (line # length)
 *                              Put it in @CHAT for EDITLN
@@ -96,7 +96,7 @@ G9094  DCZ  @CURINC           Check for combination xxx-
 G9098  DDEC @VARW             Backup to the separation mark
        CEQ  SPACE+OFFSET,V*VARW
        BS   G9098
-       CEQ  MINUS+OFFSET,V*VARW Select last
+       CEQ  MINUS+OFFSET,V*VARW  Select last
        BS   LISTZ0
 G90A6  DCHE @CURLIN,@CURINC   If something like LIST 15-11
        BS   G90AE
@@ -124,10 +124,10 @@ G90CA  DST  @EXTRAM,@CURINC   Which could be equal to CURLIN
        DST  VRAMVS,@VSPTR     Re-initialize the V-stack
        DST  @VSPTR,@STVSPT    And it's base
        XML  PGMCHR            Get name length in CHAT
-       DST  VRAMVS+16,@PABPTR Get entrypoint in PAB
+       DST  VRAMVS+16,@PABPTR  Get entrypoint in PAB
        CLR  @DSRFLG           Indicate device I/O
        MOVE 9,G@PAB,V@4(@PABPTR)
-       DST  VRAMVS+16+NLEN,@CCPADR Select start address
+       DST  VRAMVS+16+NLEN,@CCPADR  Select start address
 *                                   for copy
        ST   @CHAT,@FAC2       Number of characters to copy
        INC  @FAC2             Plus length byte
@@ -138,10 +138,10 @@ LISTZ1 ST   @CHAT,V*CCPADR    Copy the bytes one by one
        BR   LISTZ1
        CALL IOCLZ1            Preform OPEN on DSR
        CLR  @FAC              Create double byte PAB length
-       ST   V@LEN(@PABPTR),@RECLEN Get record length
+       ST   V@LEN(@PABPTR),@RECLEN  Get record length
        ST   @RECLEN,@FAC1     Get highest address used
        DADD @CCPADR,@FAC      Compute record length
-       DST  @CCPADR,V@BUF(@PABPTR) Store it
+       DST  @CCPADR,V@BUF(@PABPTR)  Store it
        CZ   @RAMTOP           If ERAM exists then           <<<<<<<<<<<<<<<<<<<<
        BS   G9128                                           <<<<<<<<<<<<<<<<<<<<
        DCH  @>8370,@FAC       Compare with top of           <<<<<<<<<<<<<<<<<<<<
@@ -188,7 +188,7 @@ GRMLST CALL GRSUB3            Get line # from ERAM(use GREAD1)
        BYTE EXTRAM          * @EXTRAM : Source address on ERAM
 *                             Reset possible breakpoint too
        DST  @EEE1,V@CRNBUF    Put it in CRNBUF
-       DST  CRNBUF+4,V@CRNBUF+2 Put CRNBUF+4 into
+       DST  CRNBUF+4,V@CRNBUF+2  Put CRNBUF+4 into
 *                              the line pointer field
        DINCT @DDD1            Get the pointer to the text
 *                              from GRAM
@@ -250,11 +250,11 @@ EOF    DST  @PABPTR,@ARG      Save the current PAB and set
        CALL SUBEOF            Try to find the PAB somewhere
        BR   ERRFE             Can't file
        ST   CZSTAT,@ARG2      Select status code without
-       EX   @ARG2,V@COD(@PABPTR) destorying original code
+       EX   @ARG2,V@COD(@PABPTR)  destorying original code
        CALL IOCLZ1            Get the info from DSR
        DEX  @ARG,@PABPTR      Restore original PAB and original
        ST   @ARG2,V@COD(@ARG)  I/O code
-       ST   V@SCR(@ARG),@ARG2 And pick up STATUS
+       ST   V@SCR(@ARG),@ARG2  And pick up STATUS
        MOVE 8,G@FLOAT1,@FAC   Get floating 1
        CLOG 3,@ARG2           Test EOF bits
        BS   EOFZ2             No EOF indication

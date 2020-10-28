@@ -64,7 +64,7 @@ VLIDZ0 CEQ  COMMAZ,@CHAT      Evaluate all fields
 G89E0  CZ   @VARW+1           Copy all available information
        BS   G89F3
        XML  VPOP              Regain stack-entry
-       MOVE @FAC6,V*FAC4,V*ARG Copy string
+       MOVE @FAC6,V*FAC4,V*ARG  Copy string
        DADD @FAC6,@ARG        Update destination address
        DEC  @VARW+1           Count # of stack entries
        BR   G89E0
