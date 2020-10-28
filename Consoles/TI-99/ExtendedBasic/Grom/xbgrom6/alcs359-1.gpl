@@ -155,13 +155,13 @@ GC0D5  ADD  @FIELD+1,@FIELD   Add to HIGH BYTE
        CGT  9,@FIELD+2
        BR   GC0E3
        SUB  7,@FIELD+2
-GC0E3  ST   @FIELD+2,@FIELD+1 Store in LOW byte of result
+GC0E3  ST   @FIELD+2,@FIELD+1  Store in LOW byte of result
        SLL  4,@FIELD+1        FIELD+1 = FIELD+1*32
        SUB  >30,@FIELD+3
        CGT  9,@FIELD+3
        BR   GC0F4
        SUB  7,@FIELD+3
-GC0F4  ADD  @FIELD+3,@FIELD+1 Add to low byte
+GC0F4  ADD  @FIELD+3,@FIELD+1  Add to low byte
 * Branch to evaluation procedure for TAG
        SUB  >30,@TAG          >30 = "0"
        CGE  0,@TAG            If TAG < "0" ILLEGAL CHAR
@@ -374,7 +374,7 @@ OPENIT DST  @FAC6,@BYTES      Store actual spec length
        ST   4,V@FLG(@SREF)       Dis, fix, seq, input
        DADD @SREF,@FAC6          Calculate the address of
        DADD PABLEN,@FAC6          the buffer
-       DST  @FAC6,V@BUF(@SREF) Store buffer address in PAB
+       DST  @FAC6,V@BUF(@SREF)  Store buffer address in PAB
        CALL DSRCAL
        RTN
 *************************************************************
@@ -396,7 +396,7 @@ DSRCAL DST  @SREF,@FAC12      Compute start address of specifications<<<<<<<<<<<
        RTN                                                  <<<<<<<<<<<<<<<<<<<<
 DSKERR DST  @FREPTR,@PABPTR   Set up dummy PAB              <<<<<<<<<<<<<<<<<<<<
        DSUB 6,@PABPTR         Make it standard size         <<<<<<<<<<<<<<<<<<<<
-       DST  V*SREF,V@4(@PABPTR) Store error code            <<<<<<<<<<<<<<<<<<
+       DST  V*SREF,V@4(@PABPTR)  Store error code           <<<<<<<<<<<<<<<<<<
        CALL CLSNOE              Close File                  <<<<<<<<<<<<<<<<<<<<
        CALL ERRZZ               Issue I/O error             <<<<<<<<<<<<<<<<<<<<
        BYTE 36              *                               <<<<<<<<<<<<<<<<<<<<

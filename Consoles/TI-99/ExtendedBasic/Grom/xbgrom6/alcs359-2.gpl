@@ -170,7 +170,7 @@ GC39D  ST   5,*COUNT          String array case
 * into FAC4.
 GC3A1  CLOG >20,V*FAC         Shared array?
        BS   GC3BE
-       MOVE 2,V@6(@FAC),@FAC4 If so, get pointer
+       MOVE 2,V@6(@FAC),@FAC4  If so, get pointer
        CLOG >20,V@-6(@FAC4)   Shared also?
        BS   GC3BC
        MOVE 2,V*FAC4,@FAC4    Array is not shared

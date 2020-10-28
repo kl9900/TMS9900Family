@@ -71,7 +71,7 @@ DISO   EQU  >6FBA
 GRMLST EQU  >802A
 ASC    EQU  >A00A
 LNKRTN EQU  >A01C
-SUPLEN EQU  >04F8             Length of ML support routine  (INIT)
+SUPLEN EQU  >0600             Length of ML support routine  (INIT)
 *************************************************************
 *    EQUATES FOR ROUTINES FROM OTHER GROM SECTIONS
  

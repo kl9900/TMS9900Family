@@ -98,7 +98,7 @@ TRAC51 CZ   @PRGFLG
        DST  NLNADD+6,@FAC12   Display location of name
 TRAC55 DST  V*FAC8,@FAC16     Get S.T. pointer
        CLR  @FAC10            Need a double length
-       ST   V@1(@FAC16),@FAC10+1 Get the name length
+       ST   V@1(@FAC16),@FAC10+1  Get the name length
        DST  V@4(@FAC16),@FAC16   Get the name pointer
        MOVE @FAC10,V*FAC16,V*FAC12   Display
 GCF2C  ADD  OFFSET,V*FAC12
@@ -115,7 +115,7 @@ GCF2C  ADD  OFFSET,V*FAC12
        DST  NLNADD+15,@FAC12  Display location of name
        BR   TRAC55
 * Now find original number
-GCF53  DST  V@-6(@FAC10),@ARG2 Get pointer to line number
+GCF53  DST  V@-6(@FAC10),@ARG2  Get pointer to line number
        CALL GETLN2            Get the actual line number
        DST  NLNADD+15,@VARW   Place to put line number
        CALL DISO              Display the line number
