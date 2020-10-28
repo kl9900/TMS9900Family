@@ -23,7 +23,7 @@ LNKRT2 CALL CHKEND            Check end of statement
 VCHAR  CALL HVCHR             Get X, Y values character, # of chars
        DCZ  @FAC              If 0 characters
        BS   XPTRTN
-VCHAR1 BYTE >08,>E0,>00,>9E,>FB * FMT '@VAR0',>31 Display vertically
+VCHAR1 BYTE >08,>E0,>00,>9E,>FB  * FMT '@VAR0',>31 Display vertically
        DDEC @FAC              Done yet?
        BS   XPTRTN            Yes, return
        CZ   @YPT              If not at start of colunm
@@ -66,7 +66,7 @@ CHAR40 DCHE SPRVB,@VARY       Don't have space for
        BS   CHAR50
        DCHE 16,@VAR7
        BS   GAB6B
-       MOVE @VAR7,V*VAR5,@FAC Move whatever
+       MOVE @VAR7,V*VAR5,@FAC  Move whatever
        DCLR @VAR7
        BR   CHAR50
 GAB6B  MOVE 16,V*VAR5,@FAC    Move one character
@@ -270,7 +270,7 @@ ERR10  XML  VPUSH             Push the temporary entry on
 * Code to get "W" in
        CALL COMB              Check for left parenthesis
        CALL ERRC05            Pick up user's symbol
-       ST   V@-8(@VSPTR),@FAC1 Get error code
+       ST   V@-8(@VSPTR),@FAC1  Get error code
        XML  CIF               Convert it to floating
        XML  ASSGNV            Assign it
 * Code to get "X" in
@@ -280,20 +280,20 @@ ERR10  XML  VPUSH             Push the temporary entry on
        MOVE 8,G@FLT1,@FAC     Make it such
        DNEG @FAC              Make it a negative
        BR   GAD0B
-GAD03  ST   V@-5(@VSPTR),@FAC1 Get I/O LUNO number
+GAD03  ST   V@-5(@VSPTR),@FAC1  Get I/O LUNO number
        XML  CIF               Convert it to floating
 GAD0B  XML  ASSGNV
 * Code to get "Y" in
        CEQ  RPARZ,@CHAT       If long form of CALL ERR
        BS   GAD42
        CALL ERRCOM            Check syntax & get user's symbol
-       ST   V@-7(@VSPTR),@FAC1 Get severity code
+       ST   V@-7(@VSPTR),@FAC1  Get severity code
        AND  >7F,@FAC1         Reset execution  /  I/O flag
        XML  CIF               Convert it
        XML  ASSGNV            Assign it
 * Code to get "Z" in
        CALL ERRCOM            Check syntax & get symbol
-       DST  V@-2(@VSPTR),@FAC2 Get line pointer
+       DST  V@-2(@VSPTR),@FAC2  Get line pointer
        DST  @FAC2,@FAC
        DCZ  @FAC2             If line number exists
        BS   GAD3E

@@ -320,7 +320,7 @@ SPCHR  XML  PARSE
        BYTE 32              * Character value 32 - 144
        DATA 143
        ADD  >60,@FAC1         Add offset to character number
-       ST   @FAC1,V@2(@SPSAL) Store the character value
+       ST   @FAC1,V@2(@SPSAL)  Store the character value
        RTN
 ******************************
 * SPMOVE ROUTINE             *

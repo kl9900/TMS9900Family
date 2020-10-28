@@ -57,7 +57,7 @@ COL20  XML  SPEED             Parse the character
 SPCOL  XML  PARSE
        BYTE RPARZ          *  Get the color number
        CALL RAN16             Check range 1 - 16
-       ST   @FAC1,V@3(@SPSAL) Store in SAL
+       ST   @FAC1,V@3(@SPSAL)  Store in SAL
        RTN
 *************************************************************
 * INTARG - Insures that the value in FAC is a numeric,      *
@@ -102,7 +102,7 @@ NUMVAR XML  SYM               Get the symbol name
        XML  SMB               Get value pointer
        XML  VPUSH             Put on stack for ASSGNV
        RTN                    And return
-ATTREG DATA >8000,>A000,>C000,
+ATTREG DATA >8000,>A000,>C000
        BYTE >9F,>BF,>DF,>FF,>00,>06
 COMB   CEQ  LPARZ,@CHAT       If not '(' - error
        BR   ERRSYN

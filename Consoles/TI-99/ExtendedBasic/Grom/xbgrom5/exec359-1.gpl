@@ -124,10 +124,10 @@ EXECTR CLR  @VARW             Clear upper address byte
        BR   GA102
        XML  SCROLL            SCROLL to next line
        DST  NLNADD,@VARW      Re-initialize screen address
-GA102  ST   LESS+OFFSET,V*VARW Display open bracket "("
+GA102  ST   LESS+OFFSET,V*VARW  Display open bracket "("
        DINC @VARW             Increment screen address
        CALL ASC               Convert line # into ASCII
-       ST   GREAT+OFFSET,V*VARW Display close bracket ")"
+       ST   GREAT+OFFSET,V*VARW  Display close bracket ")"
        DSUB NLNADD-4,@VARW    Update the x-pointer
        ST   @VARW+1,@XPT
 CLRRTN DCLR @ERRCOD           Clear the return vector

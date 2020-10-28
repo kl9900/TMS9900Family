@@ -147,8 +147,8 @@ DIRSPH SUB  3,@LENWST         Minus 3 bytes overhead
        ST   V*PTCBED,@LENCST  Get len of current string
        DINC @PTCBED           Skip len byte to 1st real byte
        ST   16,@TEMP2         Do 1st 16 bytes (fill buff)
-       ST   >60,@>8300(@WRITE) Start Speak External
-LOOPR  ST   V*PTCBED,@>8300(@WRITE) Write byte to PHROM
+       ST   >60,@>8300(@WRITE)  Start Speak External
+LOOPR  ST   V*PTCBED,@>8300(@WRITE)  Write byte to PHROM
        DINC @PTCBED           Go to next byte
        DEC  @LENWST           1 less char in whole string
        BS   CONTIN            Finished whole string?
@@ -225,7 +225,7 @@ GB2AA  DST  @DATAAD,@PHRADD
        DST  @SREF,@FAC4       Pointer to string
        DST  @BYTES,@FAC6      Length of string
        DST  >6000,V*SREF      Mark string as speech data
-       ST   @PHLEN,V@2(@SREF) Put in string length
+       ST   @PHLEN,V@2(@SREF)  Put in string length
        DSUB 3,V@1(@SREF)       minus thei info
 * LOADAD expects addr to be in PTFBPH, so move it.
        DST  @PHRADD,@PTFBPH
@@ -236,8 +236,8 @@ GB2AA  DST  @DATAAD,@PHRADD
 * PHLEN are our own overhead, so don't copy all
 GB2EB  CH   3,@PHLEN
        BR   GB316
-       ST   >10,@>8300(@WRITE) Issue read byte command
-       ST   @>8300(@READ),@BYTE3 Read the byte
+       ST   >10,@>8300(@WRITE)  Issue read byte command
+       ST   @>8300(@READ),@BYTE3  Read the byte
 * the following code is somewhat tricky. It will bit
 * reverse the contents of BYTE3 into BYTE1 through
 * BYTE2 by means of word shifts. Note the definition of
@@ -367,7 +367,7 @@ GB3AC  CH   SEMICO,@CCHAR     Can not be timing
        CEQ  SPACE,@CCHAR
        BR   GB3C5
        ST   6,@TIMLEN
-GB3B9  CEQ  SPACE,V@1(@PTCCIS) While spaces
+GB3B9  CEQ  SPACE,V@1(@PTCCIS)  While spaces
        BR   GB3C4
        DINC @PTCCIS           Skip them
        BR   GB3B9
@@ -443,7 +443,7 @@ GB430  RTNC
 LOOKUP DCLR @BYTE1            BYTE1 contains addr of curr tree
 TRYAGN DST  @BYTE1,@PTFBPH    Look for >AA tree header
        CALL LOADAD            LOADAD expects addr in PTFBPH
-       ST   >10,@>8300(@WRITE) Put out read byte command
+       ST   >10,@>8300(@WRITE)  Put out read byte command
        CEQ  >AA,@>8300(@READ)  Tree out there?
        BR   GB44E
        DINC @PTFBPH           Skip the tree header
@@ -471,23 +471,23 @@ FOUND  RTN
 * move > answer; number < we; eight < eighty; etc...        *
 *************************************************************
 SEARCH CALL LOADAD            Set PHROM to start phrase node
-       ST   >10,@>8300(@WRITE) Issue read byte command
+       ST   >10,@>8300(@WRITE)  Issue read byte command
        CLR  @PTLCPH           Length of phrase => PTLCPH
-       ST   @>8300(@READ),@PTLCPH+1 (stored as 2 byte value)
+       ST   @>8300(@READ),@PTLCPH+1  (stored as 2 byte value)
        DADD @PTFBPH,@PTLCPH   Add front ptr giving end ptr
        DST  @PTFBPH,@PTCCPH   Set up curr char as 1 beyond
        DINC @PTCCPH            length byte
        DST  @PTFCIP,@PTCCIP   Reset current ptr into phrase
 * Compare two characters
-NEXT   ST   >10,@>8300(@WRITE) Issue read byte command
-       ST   @>8300(@READ),@PHDATA Get char in from PHROM
+NEXT   ST   >10,@>8300(@WRITE)  Issue read byte command
+       ST   @>8300(@READ),@PHDATA  Get char in from PHROM
        CEQ  V*PTCCIP,@PHDATA  Compare the char
        BR   GB4D1
        DINC @PTCCPH           Equal, advance both pointers
        DINC @PTCCIP
        CEQ  SPACE,V*PTCCIP    Skip extra spaces
        BR   GB4A1
-GB48D  CEQ  SPACE,V@1(@PTCCIP) While spaces
+GB48D  CEQ  SPACE,V@1(@PTCCIP)  While spaces
        BR   GB498
        DINC @PTCCIP           Skip them
        BR   GB48D
@@ -505,8 +505,8 @@ GB4A1  DCH  @PTLCPH,@PTCCPH   End of PHROM word?
 * Skip 5 bytes down from last char to data pointer
        DADD 6,@PTFBPH
        CALL READAD            Set data addr => DATAAD
-       ST   >10,@>8300(@WRITE) Issue read byte command
-       ST   @>8300(@READ),@STRLEN Get length of speech data
+       ST   >10,@>8300(@WRITE)  Issue read byte command
+       ST   @>8300(@READ),@STRLEN  Get length of speech data
        RTN
 GB4C0  DST  3,@PTFBPH         Move 3 bytes past PTLCPH
        BR   NXTPHR
@@ -541,8 +541,8 @@ LOADAD DST  @PTFBPH,@TEMP1    This is destructive, so copy
        DAND >0F0F,@TEMP2      Isolate the LSN of the MSB, LSB
        DOR  >4040,@TEMP1      Include a 4 as MSN of all 4 nybbles
        DOR  >4040,@TEMP2       to indicate a Load Address Command
-       ST   @TEMP2+1,@>8300(@WRITE) Write out the LSN of the LSB
-       ST   @TEMP1+1,@>8300(@WRITE) Write out the LSN of the MSB
+       ST   @TEMP2+1,@>8300(@WRITE)  Write out the LSN of the LSB
+       ST   @TEMP1+1,@>8300(@WRITE)  Write out the LSN of the MSB
        ST   @TEMP2,@>8300(@WRITE)   Write out the MSN of the LSB
        ST   @TEMP1,@>8300(@WRITE)   Write out the MSN of the MSB
        ST   >40,@>8300(@WRITE)      Write out 0 as fifth nybble
@@ -553,10 +553,10 @@ LOADAD DST  @PTFBPH,@TEMP1    This is destructive, so copy
 * the PHROM location to be read so LOADAD will work.        *
 *************************************************************
 READAD CALL LOADAD            Set the addr of the PHROM
-       ST   >10,@>8300(@WRITE) Get high byte of addr
-       ST   @>8300(@READ),@DATAAD Stroe it in DATAAD
-       ST   >10,@>8300(@WRITE) Get low byte of addr
-       ST   @>8300(@READ),@DATAAD+1 Store it in DATAAD+1
+       ST   >10,@>8300(@WRITE)  Get high byte of addr
+       ST   @>8300(@READ),@DATAAD  Stroe it in DATAAD
+       ST   >10,@>8300(@WRITE)  Get low byte of addr
+       ST   @>8300(@READ),@DATAAD+1  Store it in DATAAD+1
        RTN
 *************************************************************
 * STDATA will store the data in DATAAD and TOTTIM onto the  *

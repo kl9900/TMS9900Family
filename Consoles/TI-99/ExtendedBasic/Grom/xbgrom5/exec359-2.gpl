@@ -43,8 +43,8 @@ MAXMIN CALL LPAR              Skip "(" parse, and insure ,
 * Initialize random number generator
 INTRND MOVE 10,G@X2SEED,V@RNDX2
        RTN
-X2SEED BYTE >42,>03,>23,>15,>00 * =   33521, X2 INITIAL VALUE
-X1SEED BYTE >43,>02,>3E,>2A,>17 * = 2624223, X1 INITIAL VALUE
+X2SEED BYTE >42,>03,>23,>15,>00  * =   33521, X2 INITIAL VALUE
+X1SEED BYTE >43,>02,>3E,>2A,>17  * = 2624223, X1 INITIAL VALUE
 *************************************************************
 *           PSEUDO-RANDOM NUMBER GENERATOR                  *
 *      X(N+1) = (A*X(N)+C) MOD M;  RND = X/M                *
@@ -134,12 +134,12 @@ NRND   MOVE 5,V@RNDX1,@FAC        FAC = X1
        XML  SADD           (P)RND=FAC = (X2/1E7)+(X1/1E14)
        XML  CONT
 * CONSTANTS FOR THE RANDOM NUMBER ROUTINE
-RNDA2  BYTE >43,>01,>2B,>59,>52,>00,>00,>00 * = 1438982
-RNDA1  BYTE >42,>2A,>08,>15,>00,>00,>00,>00 * = 0420821
-RNDC2  BYTE >43,>02,>0B,>20,>30,>00,>00,>00 * = 2113248
-RNDC1  BYTE >43,>06,>36,>05,>13,>00,>00,>00 * = 6540519
-RNDEP  BYTE >43,>0A,>00,>00,>00,>00,>00,>00 * = 1E7
-RNDEM  BYTE >3C,>0A,>00,>00,>00,>00,>00,>00 * = 1/1E7
+RNDA2  BYTE >43,>01,>2B,>59,>52,>00,>00,>00  * = 1438982
+RNDA1  BYTE >42,>2A,>08,>15,>00,>00,>00,>00  * = 0420821
+RNDC2  BYTE >43,>02,>0B,>20,>30,>00,>00,>00  * = 2113248
+RNDC1  BYTE >43,>06,>36,>05,>13,>00,>00,>00  * = 6540519
+RNDEP  BYTE >43,>0A,>00,>00,>00,>00,>00,>00  * = 1E7
+RNDEM  BYTE >3C,>0A,>00,>00,>00,>00,>00,>00  * = 1/1E7
 *************************************************************
 *                   RANDOMIZE STATEMENT                     *
 *************************************************************

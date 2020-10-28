@@ -199,7 +199,7 @@ GA7F6  CZ   V@3(@VSPTR)       If functional
 ***** NOW RESTORE SYMBOL TABLE AND RESUME *******************
 ***** EXECUTION AT THE ORIGINAL LINE ************************
 GA7FC  CALL DELINK            Delink the parameter entry
-       DST  V@8(@VSPTR),@PGMPTR Manual pop to get ptr back
+       DST  V@8(@VSPTR),@PGMPTR  Manual pop to get ptr back
        DDEC @PGMPTR           Back up text pointer
        XML  PGMCHR            Get next token
        XML  CONT
@@ -213,10 +213,10 @@ DELINK DST  @SYMTAB,@TEMP5    Save addr of S.T. entry just
 *                             to the parameter.
        CGE  0,V*TEMP5         If string parmeter
        BS   GA84C
-       DST  V@6(@TEMP5),@TEMP5 Where the string is
+       DST  V@6(@TEMP5),@TEMP5  Where the string is
        DCZ  @TEMP5            If non-null string
        BS   GA833
-       DST  V@-3(@TEMP5),@TEMP2 Get backpointer
+       DST  V@-3(@TEMP5),@TEMP2  Get backpointer
        DCHE @SYMTAB,@TEMP2    If not used
        BS   GA833
        DCLR V@-3(@TEMP5)      Free up the string
@@ -320,7 +320,7 @@ CONV1  CLR  @FAC10
        XML  CSNUM             Convert String to Number
 *************************************************************
        ST   @FAC10,V@CSNTP1                                 *
-       DST  @FAC12,V@CSNTMP Save those in temporary, because*
+       DST  @FAC12,V@CSNTMP  Save those in temporary, because*
 *                            in ERROV : WARNING routine have*
 *                            FAC12 and FAC10 values changed *
 *************************************************************
