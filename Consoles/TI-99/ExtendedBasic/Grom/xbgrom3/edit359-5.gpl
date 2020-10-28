@@ -109,7 +109,7 @@ G720E  DST  14,@FAC           Minimum table size for subprogram
 * Start fixing up subprogram's symbol table
        DST  @SUBTAB,V@SSTEMP  Copy address of subtable
        DADD 6,V@SSTEMP        Point to argument list
-       DST  V@SSTEMP,V@SSTMP2 Duplicate for later use
+       DST  V@SSTEMP,V@SSTMP2  Duplicate for later use
        XML  PGMCHR            Get next token
        CALL CHKEND            Check if end of statement
        BS   SCAN90            Yes. Get out here quick
@@ -394,7 +394,7 @@ G74A5  CZ   @ARG15            If 0-length (function)
        DSUB @VAR0,@FREPTR     Get space for the name
        DST  @FREPTR,@NMPTR    Set new pointer to name
        DINC @NMPTR            New pointer to name
-       MOVE @VAR0,@ARG,V*NMPTR Move the name
+       MOVE @VAR0,@ARG,V*NMPTR  Move the name
 ENT62  CLR  @FAC7             Assume not simple numeric
        CZ   @RAMTOP           Set simple numeric variable
        BS   ENT63A
@@ -601,7 +601,7 @@ ERRBV  CALL ERRZZ             * BAD VALUE
 CLEAN  DST  @VSPTR,@FAC8      Get a temporary stack pointer
 CLEAN1 DCH  @STVSPT,@FAC8     While not end of stack
        BR   G76BE
-       ST   V@2(@FAC8),@FAC14 Get stack ID byte
+       ST   V@2(@FAC8),@FAC14  Get stack ID byte
        SUB  >66,@FAC14        Check the range
        CH   >04,@FAC14        If string, numeric, >70, >72
        BR   G7698

@@ -128,7 +128,7 @@ G6B04  XML  SCROLL            Scroll the screen
        DST  @VARA,@FAC        Calculate length of old line      <<<<<<<<<<<<<<<<
        DSUB @VARW,@FAC        Subtract start from end           <<<<<<<<<<<<<<<<
        BS   READZ3            If no characters to recall
-       MOVE @FAC,V@RECBUF,V*VARW Recall line                    <<<<<<<<<<<<<<<<
+       MOVE @FAC,V@RECBUF,V*VARW  Recall line                    <<<<<<<<<<<<<<<<
 READZ3 ST   >FF,@ARG7         Non-check mode
        DST  @VARW,@ARG5       Cursor at beginning of line
        BR   READ00            Allow edit of line
@@ -180,7 +180,7 @@ G6B7A  DDEC @VARA             Pre-update end of string
 G6B86  CEQ  >20+OFFSET,V*VARA                                  <<<<<<<<<<<<<<<<<
        BS   READ01
        DINC @VARA             Locked at feild position
-G6B8E  ST   >20+OFFSET,V*VARA Clear last position
+G6B8E  ST   >20+OFFSET,V*VARA  Clear last position
        BR   READ01
 *
 * CLEAR - Clear the entire input line
@@ -192,7 +192,7 @@ G6B94  CEQ  CLRLN,@RKEY       Found CLEAR command
 *                              Current maximum to minimum
 G6B9C  CEQ  >7F,V*VARA         Don't clear edges
        BS   G6BA6
-       ST   >20+OFFSET,V*VARA Blank line
+       ST   >20+OFFSET,V*VARA  Blank line
 G6BA6  DDEC @VARA             Pre-update end-of-line
        DCHE @VARW,@VARA       Up to and including first position
        BS   G6B9C
@@ -209,7 +209,7 @@ G6BB3  CEQ  CHRTN,@RKEY       Only react on CR/UP/DOWN           <<<<<<<<<<<<<<<
        BR   READZ1
 G6BC2  DCEQ @ARG2,@VARA       Check for block on last position
        BR   G6BCF
-       CEQ  >20+OFFSET,V*VARA Blocked. . . . . .
+       CEQ  >20+OFFSET,V*VARA  Blocked. . . . . .
        BS   G6BCF
        DINC @VARA             Point beyond last character in
 *                              line

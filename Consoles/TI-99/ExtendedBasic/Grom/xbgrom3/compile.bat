@@ -1,0 +1,1 @@
+xga99 edit359.gpl -L xbgrom3.lst -o xbgrom3.bin

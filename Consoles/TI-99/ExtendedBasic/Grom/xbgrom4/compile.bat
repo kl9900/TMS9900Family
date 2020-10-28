@@ -1,0 +1,1 @@
+xga99 flmgr359.gpl -L xbgrom4.lst -o xbgrom4.bin

@@ -107,7 +107,7 @@ EDITZ4 DADD @EXTRAM,@ARG
        DADD @STPT,@STLN
        CZ   @RAMTOP
        BR   G677E
-       MOVE @ARG,V*VAR9,V*STLN Move line # table
+       MOVE @ARG,V*VAR9,V*STLN  Move line # table
        BR   G6783
 G677E  DST  @STLN,@VAR0       Destination address for MVUP
        XML  MVUP              Move the line # table up
@@ -171,7 +171,7 @@ G67C5  DDEC @STPT             Update length of text
 ********************* WRITE THE TEXT ************************
        CZ   @RAMTOP           If ERAM not exist
        BR   G67DE
-       MOVE @STPT,V@CRNBUF,V*VARY2 Move text
+       MOVE @STPT,V@CRNBUF,V*VARY2  Move text
        BR   G67EA
 G67DE  DST  CRNBUF,@AAA       Copy the text from crunch
 *                         buffer (which is on VDP) to ERAM
@@ -229,7 +229,7 @@ GWSUB  FETCH @AAA             Fetch the destination addr on
        BS   G683E
        XML  GWRITE            Write the data to ERAM
        RTN
-G683E  MOVE @CCC,*BBB+1,V*AAA Write to VDP
+G683E  MOVE @CCC,*BBB+1,V*AAA  Write to VDP
        RTN
 *************************************************************
 * SUBROUTINE TO GET A NON-BLANK CHARACTER FROM LINE         *
@@ -291,7 +291,7 @@ MEMFUL DADD @STPT,@VARA       Total # of bytes to be added
        DCHE CPUBAS,@STLN      Not enough memory
        BR   MEMZ1
        RTN
-G68B5  DCHE VRAMVS+64+256,@STLN Memory full
+G68B5  DCHE VRAMVS+64+256,@STLN  Memory full
        BS   G68C2
 MEMZ1  DADD @VARA,@STLN       Back to old start line # table
        CALL G6A84
@@ -337,7 +337,7 @@ G68FC  DCLR @SYMTAB           Kill symbol table
 *************************************************************
 CHRTA2 ALL  >20+OFFSET        Clear the screen
        DST  >3567,@>83C0      Initialize random number gen
-       MOVE 16,G@SPCCHR,V@>03F0 Cursor character
+       MOVE 16,G@SPCCHR,V@>03F0  Cursor character
 CHRTAB DST  >0400,@FAC        Address of chracater tables
        CALL CHAR2Z            Load the character set
        CEQ  >01,V@CONFLG      99/4A console?
@@ -365,7 +365,7 @@ SPRINT CLR  V@>0780           Clear motion of all sprites
        ST   >D0,V@>0370       Sprites 29 to 32 unavailiable
        DST  >C000,V@>0300     Hide the first sprites
        DCLR V@>0302           Make first sprite transparent
-       MOVE 108,V@>0300,V@>0304 Ripple for the rest
+       MOVE 108,V@>0300,V@>0304  Ripple for the rest
        RTN
 *
 * ERROR messages in this file

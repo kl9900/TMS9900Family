@@ -31,148 +31,148 @@ G601C  BR   CHRTAB
        BR   GWSUB             Write a few bytes to ERAM/VDP
 *    Error and system messages
 *      BASE 0,0,>300,>300,0,0,>60
-MSGERR BYTE >A9,>CE,>80,>A5,>D2,>D2,>CF,>D2
+MSGERR BYTE >A9,>AE,>80,>A5,>B2,>B2,>AF,>B2
 *           In Error
-MSGFST BYTE >07,>B2,>C5,>C1,>C4,>D9,>80,>8A
+MSGFST BYTE >07,>B2,>A5,>A1,>A4,>B9,>80,>8A
 *            Ready
-MSGBRK BYTE >0A,>A2,>D2,>C5,>C1,>CB,>D0,>CF,>C9,>CE,>D4
+MSGBRK BYTE >0A,>A2,>B2,>A5,>A1,>AB,>B0,>AF,>A9,>AE,>B4
 *            Breakpoint
-MSGTA  BYTE >B4,>D2,>D9,>80,>A1,>C7,>C1,>C9,>CE
+MSGTA  BYTE >B4,>B2,>B9,>80,>A1,>A7,>A1,>A9,>AE
 *           Try Again
-MSGWRN BYTE >8A,>80,>B7,>C1,>D2,>CE,>C9,>CE,>C7
+MSGWRN BYTE >8A,>80,>B7,>A1,>B2,>AE,>A9,>AE,>A7
 *            * Warning
-MSG10  BYTE >10,>AE,>D5,>CD,>C5,>D2,>C9,>C3,>80
+MSG10  BYTE >10,>AE,>B5,>AD,>A5,>B2,>A9,>A3,>80
 *            Numeric
-       BYTE >AF,>D6,>C5,>D2,>C6,>CC,>CF,>D7
+       BYTE >AF,>B6,>A5,>B2,>A6,>AC,>AF,>B7
 *           Overflow
-MSG14  BYTE >0C,>B3,>D9,>CE,>D4,>C1,>D8,>80,>A5,>D2,>D2,>CF,>D2
+MSG14  BYTE >0C,>B3,>B9,>AE,>B4,>A1,>B8,>80,>A5,>B2,>B2,>AF,>B2
 *            Syntax Error
-MSG16  BYTE >18,>A9,>CC,>CC,>C5,>C7,>C1,>CC,>80,>A1,>C6,>D4,>C5,>D2,>80
+MSG16  BYTE >18,>A9,>AC,>AC,>A5,>A7,>A1,>AC,>80,>A1,>A6,>B4,>A5,>B2,>80
 *            Illegal After
-       BYTE >B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD
+       BYTE >B3,>B5,>A2,>B0,>B2,>AF,>A7,>B2,>A1,>AD
 *           Subprogram
-MSG17  BYTE >10,>B5,>CE,>CD,>C1,>D4,>C3,>C8,>C5,>C4,>80
+MSG17  BYTE >10,>B5,>AE,>AD,>A1,>B4,>A3,>A8,>A5,>A4,>80
 *           Unmatched
-       BYTE >B1,>D5,>CF,>D4,>C5,>D3
+       BYTE >B1,>B5,>AF,>B4,>A5,>B3
 *           Quotes
-MSG19  BYTE >0D,>AE,>C1,>CD,>C5,>80,>B4,>CF,>CF,>80,>AC,>CF,>CE,>C7
+MSG19  BYTE >0D,>AE,>A1,>AD,>A5,>80,>B4,>AF,>AF,>80,>AC,>AF,>AE,>A7
 *            Name Too Long
-MSG24  BYTE >16,>B3,>D4,>D2,>C9,>CE,>C7,>8D,>AE,>D5,>CD,>C2,>C5,>D2,>80
+MSG24  BYTE >16,>B3,>B4,>B2,>A9,>AE,>A7,>8D,>AE,>B5,>AD,>A2,>A5,>B2,>80
 *            String-Number
-       BYTE >AD,>C9,>D3,>CD,>C1,>D4,>C3,>C8
+       BYTE >AD,>A9,>B3,>AD,>A1,>B4,>A3,>A8
 *           Mismatch
-MSG25  BYTE >11,>AF,>D0,>D4,>C9,>CF,>CE,>80,>A2,>C1,>D3,>C5,>80
+MSG25  BYTE >11,>AF,>B0,>B4,>A9,>AF,>AE,>80,>A2,>A1,>B3,>A5,>80
 *            Option Base
-       BYTE >A5,>D2,>D2,>CF,>D2
+       BYTE >A5,>B2,>B2,>AF,>B2
 *           Error
-MSG28  BYTE >14,>A9,>CD,>D0,>D2,>CF,>D0,>C5,>D2,>CC,>D9,>80
+MSG28  BYTE >14,>A9,>AD,>B0,>B2,>AF,>B0,>A5,>B2,>AC,>B9,>80
 *            Improperly
-       BYTE >B5,>D3,>C5,>C4,>80,>AE,>C1,>CD,>C5
+       BYTE >B5,>B3,>A5,>A4,>80,>AE,>A1,>AD,>A5
 *           Used Name
-MSG34  BYTE >16,>B5,>CE,>D2,>C5,>C3,>CF,>C7,>CE,>C9,>DA,>C5,>C4,>80
+MSG34  BYTE >16,>B5,>AE,>B2,>A5,>A3,>AF,>A7,>AE,>A9,>BA,>A5,>A4,>80
 *            Unrecognized
-       BYTE >A3,>C8,>C1,>D2,>C1,>C3,>D4,>C5,>D2
+       BYTE >A3,>A8,>A1,>B2,>A1,>A3,>B4,>A5,>B2
 *           Character
-MSG36  BYTE >0B,>A9,>CD,>C1,>C7,>C5,>80,>A5,>D2,>D2,>CF,>D2
+MSG36  BYTE >0B,>A9,>AD,>A1,>A7,>A5,>80,>A5,>B2,>B2,>AF,>B2
 *            Image Error
-MSG39  BYTE >0B,>AD,>C5,>CD,>CF,>D2,>D9,>80,>A6,>D5,>CC,>CC
+MSG39  BYTE >0B,>AD,>A5,>AD,>AF,>B2,>B9,>80,>A6,>B5,>AC,>AC
 *            Memory Full
-MSG40  BYTE >0E,>B3,>D4,>C1,>C3,>CB,>80,>AF,>D6,>C5,>D2,>C6,>CC,>CF,>D7
+MSG40  BYTE >0E,>B3,>B4,>A1,>A3,>AB,>80,>AF,>B6,>A5,>B2,>A6,>AC,>AF,>B7
 *            Stack Overflow
-MSG43  BYTE >10,>AE,>A5,>B8,>B5,>80,>B7,>C9,>D4,>C8,>CF,>D5,>D4,>80
+MSG43  BYTE >10,>AE,>A5,>B8,>B4,>80,>B7,>A9,>B4,>A8,>AF,>B5,>B4,>80
 *            NEXT Without
        BYTE >A6,>AF,>B2
 *           FOR
-MSG44  BYTE >10,>A6,>AF,>B2,>8D,>AE,>A5,>B8,>B5,>80
+MSG44  BYTE >10,>A6,>AF,>B2,>8D,>AE,>A5,>B8,>B4,>80
 *           FOR-NEXT
-       BYTE >AE,>C5,>D3,>D4,>C9,>CE,>C7
+       BYTE >AE,>A5,>B3,>B4,>A9,>AE,>A7
 *           Nesting
-MSG47  BYTE >15,>AD,>D5,>D3,>D4,>80,>A2,>C5,>80,>A9,>CE
+MSG47  BYTE >15,>AD,>B5,>B3,>B4,>80,>A2,>A5,>80,>A9,>AE
 *            Must be in
-       BYTE >80,>B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD
+       BYTE >80,>B3,>B5,>A2,>B0,>B2,>AF,>A7,>B2,>A1,>AD
 *            Subprogram
-MSG48  BYTE >19,>B2,>C5,>C3,>D5,>D2,>D3,>C9,>D6,>C5,>80
+MSG48  BYTE >19,>B2,>A5,>A3,>B5,>B2,>B3,>A9,>B6,>A5,>80
 *           Recursive
-       BYTE >B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD,>80,>A3,>C1,>CC,>CC
+       BYTE >B3,>B5,>A2,>B0,>B2,>AF,>A7,>B2,>A1,>AD,>80,>A3,>A1,>AC,>AC
 *           Subprogram Call
-MSG49  BYTE >0E,>AD,>C9,>D3,>D3,>C9,>CE,>C7,>80,>B3,>B5,>A2,>A5,>AE,>A4
+MSG49  BYTE >0E,>AD,>A9,>B3,>B3,>A9,>AE,>A7,>80,>B3,>B5,>A2,>A5,>AE,>A4
 *            Missing Subend
-MSG51  BYTE >14,>B2,>A5,>B4,>B5,>B2,>AE,>80,>B7,>C9,>D4,>C8,>CF,>D5,>D4
+MSG51  BYTE >14,>B2,>A5,>B4,>B5,>B2,>AE,>80,>B7,>A9,>B4,>A8,>AF,>B5,>B4
 *            RETURN Without
        BYTE >80,>A7,>AF,>B3,>B5,>A2
 *           GOSUB
-MSG54  BYTE >10,>B3,>D4,>D2,>C9,>CE,>C7,>80
+MSG54  BYTE >10,>B3,>B4,>B2,>A9,>AE,>A7,>80
 *            String
-       BYTE >B4,>D2,>D5,>CE,>C3,>C1,>D4,>C5,>C4
+       BYTE >B4,>B2,>B5,>AE,>A3,>A1,>B4,>A5,>A4
 *           Truncated
-MSG57  BYTE >0D,>A2,>C1,>C4,>80,>B3,>D5,>C2,>D3,>C3,>D2,>C9,>D0,>D4
+MSG57  BYTE >0D,>A2,>A1,>A4,>80,>B3,>B5,>A2,>B3,>A3,>B2,>A9,>B0,>B4
 *            Bad Subscript
-MSG60  BYTE >0E,>AC,>C9,>CE,>C5,>80,>AE,>CF,>D4,>80,>A6,>CF,>D5,>CE,>C4
+MSG60  BYTE >0E,>AC,>A9,>AE,>A5,>80,>AE,>AF,>B4,>80,>A6,>AF,>B5,>AE,>A4
 *           Line Not Found
-MSG61  BYTE >0F,>A2,>C1,>C4,>80,>AC,>C9,>CE,>C5,>80
+MSG61  BYTE >0F,>A2,>A1,>A4,>80,>AC,>A9,>AE,>A5,>80
 *           Bad Line
-       BYTE >AE,>D5,>CD,>C2,>C5,>D2
+       BYTE >AE,>B5,>AD,>A2,>A5,>B2
 *           Number
-MSG67  BYTE >0E,>A3,>C1,>CE,>87,>D4,>80,>A3,>CF,>CE,>D4,>C9,>CE,>D5,>C5
+MSG67  BYTE >0E,>A3,>A1,>AE,>87,>B4,>80,>A3,>AF,>AE,>B4,>A9,>AE,>B5,>A5
 *            Can't Continue
-MSG69  BYTE >1A,>A3,>CF,>CD,>CD,>C1,>CE,>C4,>80
+MSG69  BYTE >1A,>A3,>AF,>AD,>AD,>A1,>AE,>A4,>80
 *            Command
-       BYTE >A9,>CC,>CC,>C5,>C7,>C1,>CC,>80,>C9,>CE,>80
+       BYTE >A9,>AC,>AC,>A5,>A7,>A1,>AC,>80,>A9,>AE,>80
 *           Illegal in
-       BYTE >B0,>D2,>CF,>C7,>D2,>C1,>CD
+       BYTE >B0,>B2,>AF,>A7,>B2,>A1,>AD
 *           Program
-MSG70  BYTE >17,>AF,>CE,>CC,>D9,>80,>AC,>C5,>C7,>C1,>CC,>80
+MSG70  BYTE >17,>AF,>AE,>AC,>B9,>80,>AC,>A5,>A7,>A1,>AC,>80
 *            Only Legal
-       BYTE >C9,>CE,>80 >C1,>80,>B0,>D2,>CF,>C7,>D2,>C1,>CD
+       BYTE >A9,>AE,>80,>A1,>80,>B0,>B2,>AF,>A7,>B2,>A1,>AD
 *           in a Program
-MSG74  BYTE >0C,>A2,>C1,>C4,>80,>A1,>D2,>C7,>D5,>CD,>C5,>CE,>D4
+MSG74  BYTE >0C,>A2,>A1,>A4,>80,>A1,>B2,>A7,>B5,>AD,>A5,>AE,>B4
 *            Bad Argument
-MSG78  BYTE >12,>AE,>CF,>80,>B0,>D2,>DF,>C7,>D2,>C1,>CD
+MSG78  BYTE >12,>AE,>AF,>80,>B0,>B2,>AF,>A7,>B2,>A1,>AD
 *            No Program
-       BYTE >80,>B0,>D2,>C5,>D3,>C5,>CE,>D4
+       BYTE >80,>B0,>B2,>A5,>B3,>A5,>AE,>B4
 *            Present
-MSG79  BYTE >09,>A2,>C1,>C4,>80,>B6,>C1,>CC,>D5,>C5
+MSG79  BYTE >09,>A2,>A1,>A4,>80,>B6,>A1,>AC,>B5,>A5
 *            Bad Value
-MSG81  BYTE >17,>A9,>D1,>C3,>C3,>D2,>D2,>C5,>C3,>D4,>80
+MSG81  BYTE >17,>A9,>AE,>A3,>AF,>B2,>B2,>A5,>A3,>B4,>80
 *            Incorrect
-       BYTE >A1,>D2,>C7,>D5,>CD,>C5,>CE,>D4,>80,>AC,>C9,>D3,>D4
+       BYTE >A1,>B2,>A7,>B5,>AD,>A5,>AE,>B4,>80,>AC,>A9,>B3,>B4
 *           Argument List
-MSG83  BYTE >0B,>A9,>CE,>D0,>D5,>D4,>80,>CF,>D2,>D2,>CF,>D2
+MSG83  BYTE >0B,>A9,>AE,>B0,>B5,>B4,>80,>A5,>B2,>B2,>AF,>B2
 *            Input Error
-MSG84  BYTE >0A,>A4,>C1,>D4,>C1,>80,>A5,>D2,>D2,>CF,>D2
+MSG84  BYTE >0A,>A4,>A1,>B4,>A1,>80,>A5,>B2,>B2,>AF,>B2
 *            Data Error
-MSG97  BYTE >14,>B0,>D2,>CF,>D4,>C5,>C3,>D4,>C9,>CF,>CE,>80
+MSG97  BYTE >14,>B0,>B2,>AF,>B4,>A5,>A3,>B4,>A9,>AF,>AE,>80
 *            Protection
-       BYTE >B6,>C9,>CF,>CC,>C1,>D4,>C9,>CF,>CE
+       BYTE >B6,>A9,>AF,>AC,>A1,>B4,>A9,>AF,>AE
 *           Violation
-MSG109 BYTE >0A,>A6,>C9,>CC,>C5,>80,>A5,>D2,>D2,>CF,>D2
+MSG109 BYTE >0A,>A6,>A9,>AC,>A5,>80,>A5,>B2,>B2,>AF,>B2
 *            File Error
-MSG130 BYTE >09,>A9,>8F,>AF,>80,>A5,>D2,>D2,>CF,>D2
+MSG130 BYTE >09,>A9,>8F,>AF,>80,>A5,>B2,>B2,>AF,>B2
 *            I/O Error
-MSG135 BYTE >14,>B3,>D5,>C2,>D0,>D2,>CF,>C7,>D2,>C1,>CD,>80
+MSG135 BYTE >14,>B3,>B5,>A2,>B0,>B2,>AF,>A7,>B2,>A1,>AD,>80
 *            Subprogram
-       BYTE >AE,>CF,>D4,>80,>A6,>CF,>D5,>CE,>C4
+       BYTE >AE,>AF,>B4,>80,>A6,>AF,>B5,>AE,>A4
 *            Not Found
-MSG62  BYTE >0D,>AC,>C9,>CE,>C5,>80,>B4,>CF,>CF,>80,>AC,>CF,>CE,>C7
+MSG62  BYTE >0D,>AC,>A9,>AE,>A5,>80,>B4,>AF,>AF,>80,>AC,>AF,>AE,>A7
 *            Line Too Long
-MSGFRE BYTE >A2,>D9,>D4,>C5,>D3,>80,>A6,>D2,>C5,>C5
+MSGFRE BYTE >A2,>B9,>B4,>A5,>B3,>80,>A6,>B2,>A5,>A5
 *           Bytes Free
-MSGSFR BYTE >A2,>D9,>D4,>C5,>D3,>80,>CF,>C6,>80,>B3,>D4,>C1,>C3,>CB,>80
+MSGSFR BYTE >A2,>B9,>B4,>A5,>B3,>80,>AF,>A6,>80,>B3,>B4,>A1,>A3,>AB,>80
 *           Bytes of Stack
-       BYTE >A6,>D2,>C5,>C5
+       BYTE >A6,>B2,>A5,>A5
 *           Free
-MSGGFR BYTE >A2,>D9,>D4,>C5,>D3,>80,>CF,>C6,>80,>B0,>D2,>CF,>C7,>D2,>C1
+MSGGFR BYTE >A2,>B9,>B4,>A5,>B3,>80,>AF,>A6,>80,>B0,>B2,>AF,>A7,>B2,>A1
 *           Bytes of Program
-       BYTE >CD
-MSGGF1 BYTE >B3,>D0,>C1,>C3,>C5,>80,>A6,>D2,>C5,>C5
+       BYTE >AD
+MSGGF1 BYTE >B3,>B0,>A1,>A3,>A5,>80,>A6,>B2,>A5,>A5
 *           Space Free
-MSGCIS BYTE >B5,>A4,>A6,>80,>B2,>C5,>C6,>D3,>80,>A9,>D4,>D3,>C5,>CC,>C6
+MSGCIS BYTE >B5,>A4,>A6,>80,>B2,>A5,>A6,>B3,>80,>A9,>B4,>B3,>A5,>AC,>A6
 *           UDF Refs Itself
-MSGCF  BYTE >A3,>C1,>CC,>CC,>C5,>C4,>80,>A6,>D2,>CF,>CD
+MSGCF  BYTE >A3,>A1,>AC,>AC,>A5,>A4,>80,>A6,>B2,>AF,>AD
 *           Called From
-MSG56  BYTE >16,>B3,>D0,>C5,>C5,>C3,>C8,>80,>B3,>D4,>D2,>C9,>CE,>C7,>80
+MSG56  BYTE >16,>B3,>B0,>A5,>A5,>A3,>A8,>80,>B3,>B4,>B2,>A9,>AE,>A7,>80
 *            Speech String
-       BYTE >B4,>CF,>CF,>80,>AC,>CF,>CE,>C7
+       BYTE >B4,>AF,>AF,>80,>AC,>AF,>AE,>A7
 *           Too Long
 *      BASE 0,0,>0300,>0300,0,0,0
 USER   DATA 0,TOPLEV
@@ -181,7 +181,7 @@ USER   DATA 0,TOPLEV
 DSCLOD BYTE 9
        TEXT 'DSK1.LOAD'
        BYTE 0
-SPCCHR BYTE >00,>7C,>7C,>7C,>7C,>7C,>7C,>00     * CURSOR CHARACTER
+SPCCHR BYTE >00,>7C,>7C,>7C,>7C,>7C,>7C,>7C     * CURSOR CHARACTER
        DATA 0,0,0,0                             * EDGE CHARACTER
 VDPREG BYTE >E0,>00,>20,>00,>06,>00
 *************************************************************
@@ -197,7 +197,7 @@ TOPLEV CLR  V@>0370           Initialize temp area
 G6388  CLR  @KEYBD
        DST  NLNADD,V@BUFSRT   Initialize edit-buffer start
        DST  NLNADD,V@BUFEND   Initialize edit-buffer end
-       MOVE 2,G@ATNZZ,@INTRIN Get address of ATNZZ
+       MOVE 2,G@ATNZZ,@INTRIN  Get address of ATNZZ
        AND  >1F,@INTRIN       Throw away the BR opcode
        DADD >5B,@INTRIN       Address of polynomial constants
        ST   >FF,V@LODFLG      indicate try auto-boot
@@ -360,7 +360,7 @@ G64F9  XML  SPEED
 SZRUN1 CLR  @PRGFLG           No line #s if error in CLSALL
        CALL CLSALL            Close any open files
        DEC  @PRGFLG           Put it back in execution
-       ST   @RAMTOP+1,@RAMFLG Set/reset RAMFLG flag -- when
+       ST   @RAMTOP+1,@RAMFLG  Set/reset RAMFLG flag -- when
        DCLR V@SEXTRM           in program mode & ERAM exists
        DCLR V@ERRLN           Disallow CONTINUE after RUN
        CALL KILSYM            Reset ERR handling to defualt
@@ -383,7 +383,7 @@ G6540  DCH  V@SAVEVP,@VSPTR   While extra on stack
        XML  VPOP              Pop them off
        BR   G6540
 G654A  ST   >FF,@PRGFLG       Idicate program mode
-       ST   @RAMTOP+1,@RAMFLG Set/reset RAMFLG flag --- when
+       ST   @RAMTOP+1,@RAMFLG  Set/reset RAMFLG flag --- when
 *                              in program mode & ERAM exists
        DCLR V@SEXTRM          Prevent unauthorized CONTINUE
        DST  VRAMVS,V@SAVEVP   Init for program completion
@@ -491,7 +491,7 @@ SZRES  DCEQ @ENLN,@STLN       If no program
        BS   ERRBLN
        CH   >7F,@CURLIN       Overflow is > 32767
        BS   ERRBLN
-       ST   @RAMTOP+1,@RAMFLG Set/reset RAMFLG to use PGMCHR
+       ST   @RAMTOP+1,@RAMFLG  Set/reset RAMFLG to use PGMCHR
        CLR  @ARG4             To be used for double add
        DST  @ENLN,@PGMPTR     Start at end of program
        DST  @>8370,@VAR0      Assume VDP-top

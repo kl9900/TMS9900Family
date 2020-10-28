@@ -1,0 +1,1 @@
+xga99 alcs359.gpl -L xbgrom6.lst -o xbgrom6.bin

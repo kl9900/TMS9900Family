@@ -18,7 +18,7 @@ WARNZZ DCLR @ERRCOD           Clear the error if form 9900
        CLOG >02,@FLAG         If print turned on
        BR   G6D35
 WRNZZ3 XML  SCROLL            Scroll the screen
-       MOVE 9,G@MSGWRN,V@NLNADD * WARNING
+       MOVE 9,G@MSGWRN,V@NLNADD  * WARNING
        XML  SCROLL            Scroll the screen again
        DST  NLNADD+2,@VARW    Start address behind warning
        CALL TRACBK            Check for warning in UDF
@@ -100,7 +100,7 @@ G6D74  DEX  V@MRGPAB,@PABPTR  Get the PABPTR back           *
        DSUB @CURINC,@CURLIN   Just in case in autonum mode
        DCEQ CRNBUF,@SYMTAB    If prescanning r.h.
        BR   G6D87              of UDF and parameter in
-       DST  V@CRNBUF+2,@SYMTAB crunch buffer, fix SYMTAB
+       DST  V@CRNBUF+2,@SYMTAB  crunch buffer, fix SYMTAB
 G6D87  CLR  @EXPZ             Get index into error table
        FETCH @EXPZ+1          Get index into error table
        DSLL 2,@EXPZ           Multiply index by 4
@@ -162,7 +162,7 @@ G6DFD  XML  VPUSH             Push the error entry
 *************************************************************
 ERPRNT CALL G601C             Load the character table
        XML  SCROLL            Scroll the screen
-       ST   >2A+OFFSET,V@NLNADD Put the * in
+       ST   >2A+OFFSET,V@NLNADD  Put the * in
        DST  NLNADD+2,@VARW    Set up for the message
 ERPNT5 CLR  @KEYBD            Enable main console
        MOVE 1,G@0(@FAC10),@ARG1  Get message length
@@ -188,7 +188,7 @@ G6E4D  DCEQ MSGFST,@FAC10
        BR   G6E66
        XML  SCROLL            Display on next line
        DST  NLNADD+1,@VARW    Indent for the "IN"
-G6E66  DST  >C9CE,V@1(@VARW)   * Put in the "in"
+G6E66  DST  >A9AE,V@1(@VARW)   * Put in the "in"
        DADD 4,@VARW           Display location for line
        ST   @CHAT,@EXPZ       ASC destroys CHAT
        CALL ASC               DISPLAY THE LINE #
