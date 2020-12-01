@@ -1,0 +1,1 @@
+xas99.py -R ROM-4A_B.asm -L rom-4a-b.lst -S --9995 -b -q -o rom-4a-b.bin
